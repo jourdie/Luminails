@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+.env
+.env.local
+.env.*.local
+!.env.example
+supabase/.temp/
+tests/storefront-check.png
+tests/next-storefront-check.png
+tests/admin-check.png
+*.tsbuildinfo

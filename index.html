@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Luminails Commerce — nail supply B2B yang rapi untuk salon, nail artist, studio kecantikan, dan reseller." />
+    <title>Luminails — Nail supply, dirapikan</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="announcement">Gratis konsultasi order untuk buyer B2B baru <span>↗</span></div>
+
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Luminails home">luminails<span class="brand-dot">.</span></a>
+      <nav class="main-nav" aria-label="Navigasi utama">
+        <a href="#catalog">Belanja</a>
+        <a href="#collections">Koleksi</a>
+        <a href="#how-it-works">Cara kerja</a>
+      </nav>
+      <div class="header-actions">
+        <button class="text-button" data-open-login>Masuk B2B</button>
+        <button class="cart-button" data-open-cart aria-label="Buka keranjang">
+          <span>Keranjang</span>
+          <b class="cart-count" data-cart-count>0</b>
+        </button>
+      </div>
+      <button class="mobile-menu" aria-label="Buka menu" aria-expanded="false" data-mobile-menu>
+        <span></span><span></span>
+      </button>
+    </header>
+
+    <main id="top">
+      <section class="hero section-pad">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="eyebrow-line"></span> Luminails Commerce</p>
+          <h1>Belanja nail supply, <em>dengan ritme</em> salon kamu.</h1>
+          <p class="hero-description">Stok pilihan untuk tangan yang selalu bekerja. Harga B2B yang jelas, repeat order yang lebih cepat, dan support manusia saat kamu butuh.</p>
+          <div class="hero-actions">
+            <a class="button button-dark" href="#catalog">Lihat katalog <span>↗</span></a>
+            <button class="button button-quiet" data-open-login>Daftar akun B2B</button>
+          </div>
+          <div class="hero-notes" aria-label="Keunggulan Luminails">
+            <div><strong>500+</strong><span>SKU pilihan</span></div>
+            <div><strong>24 jam</strong><span>respon order</span></div>
+            <div><strong>1 alur</strong><span>untuk repeat</span></div>
+          </div>
+        </div>
+
+        <div class="hero-art" aria-label="Kolase warna produk Luminails" role="img">
+          <div class="art-orbit orbit-one"></div>
+          <div class="art-orbit orbit-two"></div>
+          <span class="art-star star-one">✦</span>
+          <span class="art-star star-two">✧</span>
+          <div class="swatch-label label-top">SHADES<br /><b>SPRING / 26</b></div>
+          <div class="product-tile tile-main">
+            <div class="tile-topline"><span>BLUESKY</span><span>GEL 07</span></div>
+            <div class="bottle-bloom bloom-coral"></div>
+            <div class="bottle-neck"></div>
+            <div class="bottle-cap"></div>
+            <div class="tile-name">petal<br /><em>glow</em></div>
+          </div>
+          <div class="product-tile tile-small tile-left">
+            <div class="mini-cap"></div><div class="mini-bottle mini-lilac"></div>
+            <span>01 / soft lilac</span>
+          </div>
+          <div class="product-tile tile-small tile-right">
+            <div class="mini-cap"></div><div class="mini-bottle mini-ink"></div>
+            <span>09 / ink noir</span>
+          </div>
+          <div class="art-caption">curated essentials<br /><b>for working artists</b></div>
+        </div>
+      </section>
+
+      <section class="signal-band" id="how-it-works">
+        <div class="signal-intro"><span class="signal-mark">✳</span><p>Order berulang<br /><em>tanpa mulai dari nol.</em></p></div>
+        <div class="signal-item"><span>01</span><p><b>Harga B2B rapi</b>Tier dan harga akunmu muncul otomatis.</p></div>
+        <div class="signal-item"><span>02</span><p><b>Review sebelum bayar</b>Ongkir final dikonfirmasi setelah allocation.</p></div>
+        <div class="signal-item"><span>03</span><p><b>Repeat semudah satu klik</b>Riwayat order jadi katalog personalmu.</p></div>
+      </section>
+
+      <section class="catalog-section section-pad" id="catalog">
+        <div class="section-heading">
+          <div><p class="eyebrow">Katalog terkurasi</p><h2>Masuk keranjang<br /><em>minggu ini.</em></h2></div>
+          <p class="section-intro">Pilih essentials yang paling sering dicari oleh salon, nail artist, dan studio kecantikan.</p>
+        </div>
+
+        <div class="catalog-toolbar">
+          <label class="search-box"><span aria-hidden="true">⌕</span><input type="search" placeholder="Cari produk atau SKU" aria-label="Cari produk atau SKU" data-search /></label>
+          <div class="filter-list" role="group" aria-label="Filter kategori">
+            <button class="filter-chip is-active" data-filter="all">Semua</button>
+            <button class="filter-chip" data-filter="gel">Color gel</button>
+            <button class="filter-chip" data-filter="prep">Prep</button>
+            <button class="filter-chip" data-filter="tools">Tools</button>
+          </div>
+          <label class="sort-select">Urutkan <select aria-label="Urutkan produk" data-sort><option value="featured">Pilihan kami</option><option value="price-low">Harga terendah</option><option value="price-high">Harga tertinggi</option></select></label>
+        </div>
+
+        <div class="catalog-meta"><span><b data-product-total>6</b> produk contoh</span><span class="catalog-note">Harga demo B2B · Login untuk tier akunmu</span></div>
+        <div class="product-grid" data-product-grid></div>
+        <div class="empty-state" data-empty-state hidden><span>⊙</span><h3>Belum ketemu.</h3><p>Coba kata kunci lain atau reset filter katalog.</p><button class="button button-outline" data-reset>Reset katalog</button></div>
+      </section>
+
+      <section class="collection-section section-pad" id="collections">
+        <div class="collection-intro"><p class="eyebrow">Mulai dari kebutuhanmu</p><h2>Rapi di rak,<br /><em>ringan di kepala.</em></h2><a href="#catalog" class="underlined-link">Jelajahi semua produk <span>↗</span></a></div>
+        <div class="collection-grid">
+          <a href="#catalog" class="collection-card card-lilac"><span class="collection-index">01</span><div class="collection-shape shape-bottle"></div><div><h3>Gel polish</h3><p>Warna yang siap dipakai kerja.</p></div><span class="collection-arrow">↗</span></a>
+          <a href="#catalog" class="collection-card card-coral"><span class="collection-index">02</span><div class="collection-shape shape-tools"><i></i><i></i><i></i></div><div><h3>Prep & tools</h3><p>Fondasi untuk hasil yang rapi.</p></div><span class="collection-arrow">↗</span></a>
+          <a href="#catalog" class="collection-card card-ink"><span class="collection-index">03</span><div class="collection-shape shape-box"></div><div><h3>Studio restock</h3><p>Paket praktis untuk refill rutin.</p></div><span class="collection-arrow">↗</span></a>
+        </div>
+      </section>
+
+      <section class="closing-section section-pad">
+        <div class="closing-mark">L<span>/</span>N</div>
+        <div><p class="eyebrow">Buat order pertamamu lebih ringan</p><h2>Salon yang sibuk<br /><em>butuh alur yang tenang.</em></h2></div>
+        <button class="button button-light" data-open-login>Mulai dari akun B2B <span>↗</span></button>
+      </section>
+    </main>
+
+    <footer class="site-footer section-pad"><a class="brand" href="#top">luminails<span class="brand-dot">.</span></a><p>Nail supply untuk tangan yang selalu bekerja.</p><div class="footer-links"><a href="#catalog">Katalog</a><a href="#how-it-works">Cara kerja</a><a href="#top">Bantuan</a></div><small>© 2026 Luminails Commerce · Demo storefront</small></footer>
+
+    <div class="drawer-backdrop" data-drawer-backdrop hidden></div>
+    <aside class="cart-drawer" aria-label="Keranjang belanja" aria-hidden="true" data-cart-drawer>
+      <div class="drawer-head"><div><p class="eyebrow">Order draft</p><h2>Keranjangmu</h2></div><button class="icon-button" data-close-cart aria-label="Tutup keranjang">×</button></div>
+      <div class="drawer-body" data-cart-items></div>
+      <div class="drawer-foot"><div class="drawer-summary"><span>Subtotal contoh</span><strong data-cart-total>Rp0</strong></div><p>Ongkir akan dikonfirmasi setelah review fulfillment.</p><button class="button button-dark button-full" data-checkout>Review order <span>↗</span></button></div>
+    </aside>
+
+    <div class="modal-backdrop" data-modal-backdrop hidden></div>
+    <section class="login-modal" role="dialog" aria-modal="true" aria-labelledby="login-title" aria-hidden="true" data-login-modal>
+      <button class="icon-button modal-close" data-close-login aria-label="Tutup">×</button><span class="modal-kicker">LUMINAILS / B2B</span><h2 id="login-title">Harga yang mengikuti<br /><em>cara kerjamu.</em></h2><p>Masuk untuk melihat tier harga, menyimpan alamat studio, dan mengulang order lebih cepat.</p><button class="button button-dark button-full" data-demo-login>Lanjut dengan email <span>↗</span></button><button class="button button-outline button-full" data-close-login>Lihat-lihat dulu</button><small>Demo UI — autentikasi akan terhubung di milestone berikutnya.</small>
+    </section>
+
+    <div class="toast" role="status" aria-live="polite" data-toast></div>
+    <script src="app.js"></script>
+  </body>
+</html>
