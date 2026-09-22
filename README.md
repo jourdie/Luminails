@@ -23,21 +23,21 @@ Tanpa env Supabase, homepage memakai katalog demo yang sama dengan prototype awa
 
 ## Struktur penting
 
-- `app/` — App Router Next.js.
-- `components/storefront.tsx` — UI customer-facing, filter, cart draft, dan entry point B2B.
-- `lib/catalog.ts` — query server-side katalog dengan fallback demo.
-- `lib/supabase/` — typed server client foundation.
-- `supabase/migrations/` — migration versioned untuk catalog projection dan akun B2B dasar.
-- `supabase/seed.sql` — seed development yang diberi label, bukan data production.
-- `tests/next_browser_check.py` — smoke test Playwright untuk desktop dan mobile.
+- `app/` â€” App Router Next.js.
+- `components/storefront.tsx` â€” UI customer-facing, filter, cart draft, dan entry point B2B.
+- `lib/catalog.ts` â€” query server-side katalog dengan fallback demo.
+- `lib/supabase/` â€” typed server client foundation.
+- `supabase/migrations/` â€” migration versioned untuk catalog projection dan akun B2B dasar.
+- `supabase/seed.sql` â€” seed development yang diberi label, bukan data production.
+- `tests/next_browser_check.py` â€” smoke test Playwright untuk desktop dan mobile.
 
 ## Google SSO
 
 Halaman `/auth` sudah menyediakan tombol Google dan email magic link. Di Supabase Dashboard:
 
-1. Buka Authentication → Providers → Google, lalu aktifkan provider.
+1. Buka Authentication â†’ Providers â†’ Google, lalu aktifkan provider.
 2. Buat OAuth Client ID di Google Cloud dengan callback URI `https://<project-ref>.supabase.co/auth/v1/callback`.
-3. Tambahkan URL aplikasi ke Supabase Authentication → URL Configuration, misalnya `http://localhost:3000/auth/callback` dan URL production Vercel.
+3. Tambahkan URL aplikasi ke Supabase Authentication â†’ URL Configuration, misalnya `http://localhost:3000/auth/callback` dan URL production Vercel.
 
 Callback aplikasi akan membuat atau memperbarui `customer_profiles`. Akses `/admin` tetap ditentukan oleh tabel `admin_memberships`, bukan metadata user.
 
@@ -76,3 +76,16 @@ Skill yang dikunci di `skills-lock.json`: `find-skills`, `frontend-design`, `ver
 3. Tambahkan pricing tier server-side dan order snapshot/idempotency.
 4. Tambahkan Operations allocation lokal/dropship dan quote versioning.
 5. Integrasikan Midtrans Sandbox melalui adapter dan verified webhook.
+
+## WhatsApp
+
+Storefront menyediakan floating bubble WhatsApp. Isi `NEXT_PUBLIC_WHATSAPP_NUMBER` dengan format internasional tanpa tanda `+`, misalnya `62812xxxxxxx`; bubble baru tampil setelah nomor diisi.
+
+Notifikasi order admin akan memakai Meta WhatsApp Cloud API melalui server-side webhook setelah flow checkout production aktif. Kredensial berikut tidak boleh diletakkan di browser:
+
+- `WHATSAPP_CLOUD_API_TOKEN`
+- `WHATSAPP_CLOUD_PHONE_NUMBER_ID`
+- `WHATSAPP_ADMIN_TO`
+- `WHATSAPP_WEBHOOK_SECRET`
+
+Payload notifikasi yang disiapkan: nomor order, total, status order, status pembayaran, dan status fulfillment. Pengiriman ke nomor admin baru boleh diaktifkan setelah nomor tujuan dan payload dikonfirmasi.
