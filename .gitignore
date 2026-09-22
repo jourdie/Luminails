@@ -12,3 +12,6 @@ tests/admin-check.png
 *.tsbuildinfo
 
 tests/promotion-check.png
+/dist/
+.vinext/
+.wrangler/
