@@ -73,9 +73,9 @@ export type AdminDashboard = {
 };
 
 const demoProducts: AdminProduct[] = [
-  { id: 'demo-ph-bond', name: 'PH Bond ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â nail prep', brand: 'Luminails Lab', category: 'Prep', is_published: true },
-  { id: 'demo-petal-glow', name: 'Color Gel ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Petal Glow', brand: 'Bluesky', category: 'Color gel', is_published: true },
-  { id: 'demo-rubber-base', name: 'Rubber Base ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Milky', brand: 'Party', category: 'Base gel', is_published: true },
+  { id: 'demo-ph-bond', name: 'PH Bond - nail prep', brand: 'Luminails Lab', category: 'Prep', is_published: true },
+  { id: 'demo-petal-glow', name: 'Color Gel - Petal Glow', brand: 'Bluesky', category: 'Color gel', is_published: true },
+  { id: 'demo-rubber-base', name: 'Rubber Base - Milky', brand: 'Party', category: 'Base gel', is_published: true },
 ];
 
 const demoOrders: AdminOrder[] = [

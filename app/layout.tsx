@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import '../styles.css';
 
 export const metadata: Metadata = {
-  title: 'Luminails â€” Nail supply, dirapikan',
+  title: 'Luminails - Nail supply, dirapikan',
   description: 'Nail supply B2B untuk salon, nail artist, studio kecantikan, dan reseller.',
   icons: { icon: '/favicon.svg', shortcut: '/favicon.svg' },
 };
