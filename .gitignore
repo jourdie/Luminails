@@ -10,3 +10,5 @@ tests/storefront-check.png
 tests/next-storefront-check.png
 tests/admin-check.png
 *.tsbuildinfo
+
+tests/promotion-check.png

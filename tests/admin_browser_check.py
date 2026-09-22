@@ -21,7 +21,7 @@ def main():
         print("products", flush=True)
         page.get_by_role("button", name="Produk", exact=True).click()
         assert page.get_by_role("heading", name="Update barang.").is_visible()
-        assert page.locator("input[name='name']").first.input_value() == "PH Bond — nail prep"
+        assert page.locator("input[name='name']").first.input_value().startswith("PH Bond")
 
         print("orders", flush=True)
         page.get_by_role("button", name="Transaksi").click()

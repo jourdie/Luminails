@@ -23,21 +23,21 @@ Tanpa env Supabase, homepage memakai katalog demo yang sama dengan prototype awa
 
 ## Struktur penting
 
-- `app/` Ã¢â‚¬â€ App Router Next.js.
-- `components/storefront.tsx` Ã¢â‚¬â€ UI customer-facing, filter, cart draft, dan entry point B2B.
-- `lib/catalog.ts` Ã¢â‚¬â€ query server-side katalog dengan fallback demo.
-- `lib/supabase/` Ã¢â‚¬â€ typed server client foundation.
-- `supabase/migrations/` Ã¢â‚¬â€ migration versioned untuk catalog projection dan akun B2B dasar.
-- `supabase/seed.sql` Ã¢â‚¬â€ seed development yang diberi label, bukan data production.
-- `tests/next_browser_check.py` Ã¢â‚¬â€ smoke test Playwright untuk desktop dan mobile.
+- `app/` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â App Router Next.js.
+- `components/storefront.tsx` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â UI customer-facing, filter, cart draft, dan entry point B2B.
+- `lib/catalog.ts` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â query server-side katalog dengan fallback demo.
+- `lib/supabase/` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â typed server client foundation.
+- `supabase/migrations/` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â migration versioned untuk catalog projection dan akun B2B dasar.
+- `supabase/seed.sql` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â seed development yang diberi label, bukan data production.
+- `tests/next_browser_check.py` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â smoke test Playwright untuk desktop dan mobile.
 
 ## Google SSO
 
 Halaman `/auth` sudah menyediakan tombol Google dan email magic link. Di Supabase Dashboard:
 
-1. Buka Authentication Ã¢â€ â€™ Providers Ã¢â€ â€™ Google, lalu aktifkan provider.
+1. Buka Authentication ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Providers ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Google, lalu aktifkan provider.
 2. Buat OAuth Client ID di Google Cloud dengan callback URI `https://<project-ref>.supabase.co/auth/v1/callback`.
-3. Tambahkan URL aplikasi ke Supabase Authentication Ã¢â€ â€™ URL Configuration, misalnya `http://localhost:3000/auth/callback` dan URL production Vercel.
+3. Tambahkan URL aplikasi ke Supabase Authentication ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ URL Configuration, misalnya `http://localhost:3000/auth/callback` dan URL production Vercel.
 
 Callback aplikasi akan membuat atau memperbarui `customer_profiles`. Akses `/admin` tetap ditentukan oleh tabel `admin_memberships`, bukan metadata user.
 
@@ -89,3 +89,15 @@ Notifikasi order admin sekarang memakai Meta WhatsApp Cloud API melalui endpoint
 - `WHATSAPP_WEBHOOK_SECRET`
 
 Payload lengkap mencakup nomor order, customer/account ID, channel, total, status order, pembayaran, fulfillment, waktu order, dan item produk. Di Supabase Dashboard buat Database Webhook untuk public.commerce_orders event INSERT ke https://<domain-vercel>/api/webhooks/order, lalu tambahkan header x-whatsapp-webhook-secret dengan nilai yang sama seperti WHATSAPP_WEBHOOK_SECRET. SUPABASE_SERVICE_ROLE_KEY dipakai server-side untuk membaca item order.
+
+## Promotion engine
+
+Back office → Promosi mendukung:
+
+- New user promo: audience user baru, first-order rule, minimum order, quota.
+- Recurring repeat promo: minimum jumlah paid order, quota per customer, dan stackable rule.
+- Bundling package: bundle item akan disimpan di promotion_bundle_items dengan harga paket.
+- Seasonal promo: campaign tanggal seperti 9.9, 10.10 dengan start/end time dan status.
+- Custom special voucher: voucher code dan daftar customer eligible melalui UUID customer_profiles.
+
+Schema promotion disimpan di migration `20260922150000_promotions_backoffice.sql`. Promo sample hanya development data dari `supabase/seed.sql`; aturan production harus dikonfirmasi sebelum migration/seed remote dijalankan.

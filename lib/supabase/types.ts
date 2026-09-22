@@ -77,6 +77,44 @@ export type Database = {
         Update: Record<string, unknown>;
         Relationships: [];
       };
+      commerce_promotions: {
+        Row: {
+          id: string;
+          code: string;
+          name: string;
+          description: string | null;
+          promotion_type: 'new_user' | 'repeat_order' | 'bundle' | 'seasonal' | 'custom_voucher';
+          audience_type: 'all' | 'new_user' | 'repeat_customer' | 'pricing_tier' | 'custom_customer';
+          discount_type: 'percentage' | 'fixed_amount' | 'fixed_price' | 'free_shipping';
+          discount_value: number;
+          bundle_price_idr: number | null;
+          minimum_order_amount_idr: number;
+          minimum_item_quantity: number;
+          repeat_order_min_count: number;
+          voucher_code: string | null;
+          usage_limit: number | null;
+          usage_limit_per_customer: number | null;
+          usage_count: number;
+          starts_at: string;
+          ends_at: string | null;
+          status: 'draft' | 'scheduled' | 'active' | 'paused' | 'expired';
+          is_stackable: boolean;
+          is_active: boolean;
+          metadata: Json;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Record<string, unknown>;
+        Update: Record<string, unknown>;
+        Relationships: [];
+      };
+      promotion_eligible_customers: {
+        Row: { promotion_id: string; customer_id: string; usage_limit: number | null; usage_count: number; created_at: string; };
+        Insert: Record<string, unknown>;
+        Update: Record<string, unknown>;
+        Relationships: [];
+      };
       admin_memberships: {
         Row: {
           user_id: string;
