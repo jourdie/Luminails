@@ -1,23 +1,51 @@
-'use server';
+﻿'use server';
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '../../lib/supabase/server';
 
 export type AdminActionState = { ok: boolean; message: string };
 
-async function requireAdmin(roles: string[]) {
+const ADMIN_PERMISSION_KEYS = ['catalog', 'orders', 'notifications', 'pricing', 'promotions', 'packages', 'inventory', 'settings'] as const;
+export type AdminPermission = typeof ADMIN_PERMISSION_KEYS[number];
+
+function permissionsFromForm(formData: FormData) {
+  return Object.fromEntries(ADMIN_PERMISSION_KEYS.map((permission) => [permission, formData.get('permission_' + permission) === 'on']));
+}
+async function requireAdmin(requiredPermission: AdminPermission) {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
     return { ok: false as const, message: 'Isi env Supabase untuk menyimpan perubahan admin.' };
   }
-
   const supabase = await createClient();
-  const { data: membership, error } = await supabase.from('admin_memberships').select('role, is_active').maybeSingle();
-  if (error || !membership?.is_active || !roles.includes(membership.role)) {
-    return { ok: false as const, message: 'Akun ini belum memiliki permission admin yang diperlukan.' };
-  }
+  const { data: membership, error } = await supabase.from('admin_memberships').select('role, is_active, permissions').maybeSingle();
+  const permissions = membership?.permissions && typeof membership.permissions === 'object' ? membership.permissions as Record<string, unknown> : {};
+  const allowed = membership?.role === 'owner' || permissions[requiredPermission] === true;
+  if (error || !membership?.is_active || !allowed) return { ok: false as const, message: 'Akun ini belum memiliki permission admin yang diperlukan.' };
   return { ok: true as const, supabase };
 }
+export async function upsertAdminMembership(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const email = String(formData.get('email') ?? '').trim().toLowerCase();
+  const role = String(formData.get('role') ?? 'support');
+  if (!email || !email.includes('@')) return { ok: false, message: 'Masukkan email Google yang sudah terdaftar di Supabase Auth.' };
+  if (!['catalog_manager', 'orders_manager', 'support'].includes(role)) return { ok: false, message: 'Role admin tidak valid.' };
+  const access = await requireOwner();
+  if (!access.ok) return access;
+  const { error } = await access.supabase.rpc('upsert_admin_membership_by_email', { p_email: email, p_role: role, p_permissions: permissionsFromForm(formData) });
+  if (error) return { ok: false, message: error.message.includes('No Supabase') ? 'Email belum pernah login dengan Google di aplikasi.' : 'Admin belum tersimpan. Periksa email dan koneksi Supabase.' };
+  revalidatePath('/admin');
+  return { ok: true, message: 'Akses admin berhasil disimpan.' };
+}
 
+export async function setAdminMembershipStatus(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const userId = String(formData.get('user_id') ?? '');
+  const isActive = formData.get('is_active') === 'true';
+  if (!userId) return { ok: false, message: 'Admin tidak ditemukan.' };
+  const access = await requireOwner();
+  if (!access.ok) return access;
+  const { error } = await access.supabase.rpc('set_admin_membership_status', { p_user_id: userId, p_is_active: isActive });
+  if (error) return { ok: false, message: 'Status admin belum dapat diperbarui.' };
+  revalidatePath('/admin');
+  return { ok: true, message: isActive ? 'Akses admin diaktifkan.' : 'Akses admin dinonaktifkan.' };
+}
 export async function updateCatalogProduct(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
   const productId = String(formData.get('product_id') ?? '');
   const name = String(formData.get('name') ?? '').trim();
@@ -25,7 +53,7 @@ export async function updateCatalogProduct(previous: AdminActionState, formData:
   const isPublished = formData.get('is_published') === 'on';
   if (!productId || !name || !category) return { ok: false, message: 'Nama dan kategori wajib diisi.' };
 
-  const access = await requireAdmin(['owner', 'catalog_manager']);
+  const access = await requireAdmin('catalog');
   if (!access.ok) return access;
 
   const { error } = await access.supabase.from('catalog_products').update({ name, category, is_published: isPublished }).eq('id', productId);
@@ -46,7 +74,7 @@ export async function updatePricingTier(previous: AdminActionState, formData: Fo
     return { ok: false, message: 'Nama, threshold belanja, dan jumlah order harus diisi dengan benar.' };
   }
 
-  const access = await requireAdmin(['owner']);
+  const access = await requireAdmin('pricing');
   if (!access.ok) return access;
 
   const { error } = await access.supabase.from('pricing_tiers').update({
@@ -62,7 +90,7 @@ export async function updatePricingTier(previous: AdminActionState, formData: Fo
 }
 
 export async function markNotificationRead(notificationId: string): Promise<AdminActionState> {
-  const access = await requireAdmin(['owner', 'catalog_manager', 'orders_manager', 'support']);
+  const access = await requireAdmin('notifications');
   if (!access.ok) return access;
   const { error } = await access.supabase.from('admin_notifications').update({ read_at: new Date().toISOString() }).eq('id', notificationId);
   if (error) return { ok: false, message: 'Notifikasi belum dapat ditandai terbaca.' };
@@ -76,7 +104,7 @@ export async function updatePromotion(previous: AdminActionState, formData: Form
   if (!promotionId) return { ok: false, message: 'Promotion ID tidak ditemukan.' };
   if (!values.ok) return { ok: false, message: values.message ?? 'Field promo tidak valid.' };
 
-  const access = await requireAdmin(['owner', 'catalog_manager']);
+  const access = await requireAdmin('promotions');
   if (!access.ok) return access;
 
   const { error } = await access.supabase.from('commerce_promotions').update(values.data).eq('id', promotionId);
@@ -92,7 +120,7 @@ export async function createPromotion(previous: AdminActionState, formData: Form
   const values = parsePromotionForm(formData);
   if (!values.ok) return { ok: false, message: values.message ?? 'Field promo tidak valid.' };
 
-  const access = await requireAdmin(['owner', 'catalog_manager']);
+  const access = await requireAdmin('promotions');
   if (!access.ok) return access;
 
   const { data, error } = await access.supabase.from('commerce_promotions').insert(values.data).select('id').single();
@@ -179,4 +207,172 @@ async function syncEligibleCustomers(supabase: Awaited<ReturnType<typeof createC
   if (customerIds.length === 0) return null;
   const { error: insertError } = await supabase.from('promotion_eligible_customers').insert(customerIds.map((customerId) => ({ promotion_id: promotionId, customer_id: customerId })));
   return insertError ? 'Sebagian eligible customer belum tersimpan.' : null;
+}async function requireOwner() {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
+    return { ok: false as const, message: 'Isi env Supabase untuk menyimpan perubahan admin.' };
+  }
+  const supabase = await createClient();
+  const { data: membership, error } = await supabase.from('admin_memberships').select('role, is_active').maybeSingle();
+  if (error || !membership?.is_active || membership.role !== 'owner') return { ok: false as const, message: 'Hanya super admin/owner yang dapat mengatur akses admin.' };
+  return { ok: true as const, supabase };
+}
+export async function createBrand(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const slug = String(formData.get('slug') ?? '').trim().toLowerCase();
+  const name = String(formData.get('name') ?? '').trim();
+  const visualTone = String(formData.get('visual_tone') ?? 'clay');
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || !name || !['clay', 'ivory', 'plum', 'champagne'].includes(visualTone)) return { ok: false, message: 'Slug, nama, dan tone brand wajib valid.' };
+  const access = await requireAdmin('packages');
+  if (!access.ok) return access;
+  const { error } = await access.supabase.from('catalog_brands').insert({ slug, name, tagline: String(formData.get('tagline') ?? '').trim() || null, description: String(formData.get('description') ?? '').trim() || null, visual_tone: visualTone, is_published: formData.get('is_published') === 'on', sort_order: integerOrZero(formData.get('sort_order')) });
+  if (error) return { ok: false, message: 'Brand belum dibuat. Pastikan slug belum dipakai.' };
+  revalidatePath('/admin'); revalidatePath('/brands'); revalidatePath('/packages');
+  return { ok: true, message: 'Brand berhasil dibuat.' };
+}
+
+export async function createPackage(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const values = parsePackageForm(formData);
+  if (!values.ok) return values;
+  const access = await requireAdmin('packages');
+  if (!access.ok) return access;
+  const { error } = await access.supabase.from('commerce_packages').insert(values.data);
+  if (error) return { ok: false, message: 'Package belum dibuat. Pastikan brand dan slug benar.' };
+  revalidatePath('/admin'); revalidatePath('/packages'); revalidatePath('/brands');
+  return { ok: true, message: 'Package berhasil dibuat.' };
+}
+
+export async function updatePackage(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const id = String(formData.get('package_id') ?? '');
+  const values = parsePackageForm(formData);
+  if (!id) return { ok: false, message: 'Package ID tidak ditemukan.' };
+  if (!values.ok) return values;
+  const access = await requireAdmin('packages');
+  if (!access.ok) return access;
+  const { error } = await access.supabase.from('commerce_packages').update(values.data).eq('id', id);
+  if (error) return { ok: false, message: 'Package belum diperbarui.' };
+  revalidatePath('/admin'); revalidatePath('/packages'); revalidatePath('/brands');
+  return { ok: true, message: 'Package berhasil diperbarui.' };
+}
+
+export async function deletePackage(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const id = String(formData.get('package_id') ?? '');
+  if (!id) return { ok: false, message: 'Package ID tidak ditemukan.' };
+  const access = await requireAdmin('packages');
+  if (!access.ok) return access;
+  const { error } = await access.supabase.from('commerce_packages').delete().eq('id', id);
+  if (error) return { ok: false, message: 'Package belum dihapus. Hapus isi package dan harga tier terlebih dahulu.' };
+  revalidatePath('/admin'); revalidatePath('/packages'); revalidatePath('/brands');
+  return { ok: true, message: 'Package berhasil dihapus.' };
+}
+
+export async function createInventoryStock(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const locationId = String(formData.get('location_id') ?? '');
+  const skuId = String(formData.get('sku_id') ?? '');
+  const onHand = integerOrZero(formData.get('on_hand_quantity'));
+  const reserved = integerOrZero(formData.get('reserved_quantity'));
+  const reorder = integerOrZero(formData.get('reorder_point'));
+  if (!locationId || !skuId || onHand < 0 || reserved < 0 || reorder < 0 || reserved > onHand) return { ok: false, message: 'Lokasi, SKU, dan quantity inventory wajib valid.' };
+  const access = await requireAdmin('inventory');
+  if (!access.ok) return access;
+  const { data, error } = await access.supabase.from('inventory_stock').insert({ location_id: locationId, sku_id: skuId, on_hand_quantity: onHand, reserved_quantity: reserved, reorder_point: reorder }).select('id').single();
+  if (error || !data) return { ok: false, message: 'Stock belum dibuat. Pastikan lokasi dan SKU belum memiliki baris stock.' };
+  if (onHand > 0) {
+    const { data: authData } = await access.supabase.auth.getUser();
+    await access.supabase.from('inventory_movements').insert({ location_id: locationId, sku_id: skuId, movement_type: 'receiving', quantity_delta: onHand, reason: 'Initial stock', created_by: authData.user?.id ?? null });
+  }
+  revalidatePath('/admin');
+  return { ok: true, message: 'Stock berhasil ditambahkan.' };
+}
+
+export async function updateInventoryStock(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const id = String(formData.get('stock_id') ?? '');
+  const onHand = integerOrZero(formData.get('on_hand_quantity'));
+  const reserved = integerOrZero(formData.get('reserved_quantity'));
+  const reorder = integerOrZero(formData.get('reorder_point'));
+  const reason = String(formData.get('reason') ?? '').trim();
+  if (!id || onHand < 0 || reserved < 0 || reorder < 0 || reserved > onHand || !reason) return { ok: false, message: 'Quantity dan alasan adjustment wajib diisi.' };
+  const access = await requireAdmin('inventory');
+  if (!access.ok) return access;
+  const { error } = await (access.supabase as any).rpc('adjust_inventory_stock', { p_stock_id: id, p_on_hand_quantity: onHand, p_reserved_quantity: reserved, p_reorder_point: reorder, p_reason: reason });
+  if (error) return { ok: false, message: error.message.includes('Invalid') ? 'Quantity inventory tidak valid.' : 'Stock belum diperbarui.' };
+  revalidatePath('/admin');
+  return { ok: true, message: 'Stock berhasil diperbarui dan movement tercatat.' };
+}
+
+export async function deleteInventoryStock(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const id = String(formData.get('stock_id') ?? '');
+  if (!id) return { ok: false, message: 'Stock ID tidak ditemukan.' };
+  const access = await requireAdmin('inventory');
+  if (!access.ok) return access;
+  const { error } = await access.supabase.from('inventory_stock').delete().eq('id', id);
+  if (error) return { ok: false, message: 'Stock belum dihapus. Pastikan belum dipakai pada movement atau order.' };
+  revalidatePath('/admin');
+  return { ok: true, message: 'Stock berhasil dihapus.' };
+}
+
+export async function updateWhatsappSettings(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const phone = String(formData.get('phone') ?? '').replace(/\D/g, '');
+  const message = String(formData.get('message') ?? '').trim();
+  if (!/^\d{8,15}$/.test(phone) || message.length < 5 || message.length > 240) return { ok: false, message: 'Nomor WhatsApp atau pesan belum valid.' };
+  const access = await requireAdmin('settings');
+  if (!access.ok) return access;
+  const { data: authData } = await access.supabase.auth.getUser();
+  const { error } = await access.supabase.from('commerce_store_settings').upsert({ key: 'whatsapp', value: { phone, message }, is_public: true, updated_by: authData.user?.id ?? null, updated_at: new Date().toISOString() });
+  if (error) return { ok: false, message: 'Pengaturan WhatsApp belum tersimpan.' };
+  revalidatePath('/admin'); revalidatePath('/');
+  return { ok: true, message: 'Pengaturan WhatsApp berhasil diperbarui.' };
+}
+
+function parsePackageForm(formData: FormData) {
+  const brandId = String(formData.get('brand_id') ?? '');
+  const slug = String(formData.get('slug') ?? '').trim().toLowerCase();
+  const title = String(formData.get('title') ?? '').trim();
+  const audience = String(formData.get('audience') ?? '');
+  const description = String(formData.get('description') ?? '').trim();
+  const price = integerOrZero(formData.get('price_idr'));
+  const compareAtValue = String(formData.get('compare_at_price_idr') ?? '').trim();
+  const compareAt = compareAtValue ? integerOrZero(formData.get('compare_at_price_idr')) : null;
+  const visualTone = String(formData.get('visual_tone') ?? 'clay');
+  const status = String(formData.get('status') ?? 'draft');
+  if (!brandId || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || !title || !['home-studio', 'salon', 'restock'].includes(audience) || !description || price < 0 || (compareAt !== null && compareAt < price) || !['clay', 'ivory', 'plum'].includes(visualTone) || !['draft', 'published', 'archived'].includes(status)) return { ok: false as const, message: 'Brand, slug, judul, audience, harga, dan status package wajib valid.' };
+  return { ok: true as const, data: { brand_id: brandId, slug, title, audience, description, long_description: String(formData.get('long_description') ?? '').trim() || null, price_idr: price, compare_at_price_idr: compareAt, badge: String(formData.get('badge') ?? '').trim() || null, visual_tone: visualTone, delivery_note: String(formData.get('delivery_note') ?? '').trim() || null, status, sort_order: integerOrZero(formData.get('sort_order')) } };
+}
+export async function addPackageItem(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const packageId = String(formData.get('package_id') ?? '');
+  const skuId = String(formData.get('sku_id') ?? '');
+  const quantity = integerOrZero(formData.get('quantity'));
+  if (!packageId || !skuId || quantity < 1) return { ok: false, message: 'SKU dan quantity item wajib valid.' };
+  const access = await requireAdmin('packages');
+  if (!access.ok) return access;
+  const { data: sku } = await access.supabase.from('catalog_skus').select('name').eq('id', skuId).maybeSingle();
+  if (!sku) return { ok: false, message: 'SKU tidak ditemukan.' };
+  const { error } = await access.supabase.from('commerce_package_items').insert({ package_id: packageId, sku_id: skuId, item_name_snapshot: sku.name, item_note: String(formData.get('item_note') ?? '').trim() || null, quantity, sort_order: integerOrZero(formData.get('sort_order')) });
+  if (error) return { ok: false, message: 'Item belum ditambahkan. SKU mungkin sudah ada di package.' };
+  revalidatePath('/admin'); revalidatePath('/packages'); revalidatePath('/brands');
+  return { ok: true, message: 'Item package berhasil ditambahkan.' };
+}
+
+export async function deletePackageItem(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const id = String(formData.get('package_item_id') ?? '');
+  if (!id) return { ok: false, message: 'Package item ID tidak ditemukan.' };
+  const access = await requireAdmin('packages');
+  if (!access.ok) return access;
+  const { error } = await access.supabase.from('commerce_package_items').delete().eq('id', id);
+  if (error) return { ok: false, message: 'Item package belum dapat dihapus.' };
+  revalidatePath('/admin'); revalidatePath('/packages'); revalidatePath('/brands');
+  return { ok: true, message: 'Item package berhasil dihapus.' };
+}
+
+export async function updateOrderTracking(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const orderId = String(formData.get('order_id') ?? '').trim();
+  const provider = String(formData.get('provider') ?? '').trim();
+  const trackingNumber = String(formData.get('tracking_number') ?? '').trim();
+  const trackingUrl = String(formData.get('tracking_url') ?? '').trim() || null;
+  const status = String(formData.get('shipment_status') ?? 'in_transit');
+  if (!orderId || !provider || !trackingNumber) return { ok: false, message: 'Provider dan nomor tracking wajib diisi.' };
+  const access = await requireAdmin('orders');
+  if (!access.ok) return access;
+  const { error } = await (access.supabase as any).rpc('set_order_tracking', { p_order_id: orderId, p_provider: provider, p_tracking_number: trackingNumber, p_tracking_url: trackingUrl, p_status: status });
+  if (error) return { ok: false, message: 'Tracking belum tersimpan. Pastikan shipment order sudah dibuat.' };
+  revalidatePath('/admin');
+  return { ok: true, message: 'Tracking order berhasil diperbarui.' };
 }

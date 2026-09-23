@@ -15,3 +15,5 @@ tests/promotion-check.png
 /dist/
 .vinext/
 .wrangler/
+
+.env.production.local.txt

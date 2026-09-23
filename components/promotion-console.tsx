@@ -12,7 +12,7 @@ const typeLabels: Record<AdminPromotion['promotion_type'], string> = {
   custom_voucher: 'Custom special voucher',
 };
 
-const money = (value: number | null) => value === null ? '-' : new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value);
+const money = (value: number | null) => value === null ? '-' : 'Rp' + new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(value);
 const dateInput = (value: string | null) => value ? value.slice(0, 16) : '';
 
 export function PromotionConsole({ promotions, canEdit }: { promotions: AdminPromotion[]; canEdit: boolean }) {

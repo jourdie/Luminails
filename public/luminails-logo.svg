@@ -1,12 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 96" role="img" aria-labelledby="title desc">
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 96" role="img" aria-labelledby="title desc">
   <title id="title">Luminails</title>
-  <desc id="desc">Luminails wordmark with a lilac nail polish flower mark and coral dot.</desc>
+  <desc id="desc">Luminails wordmark with a champagne nail polish flower mark and clay dot.</desc>
   <g transform="translate(8 8)">
-    <path d="M40 1c19 0 35 15 35 34S59 70 40 70 5 54 5 35 21 1 40 1Z" fill="#bcb0ea"/>
-    <path d="M40 12c11 0 20 9 20 20S51 52 40 52 20 43 20 32s9-20 20-20Z" fill="#f5f1ea"/>
-    <path d="M31 20v25h18M31 45V20" fill="none" stroke="#252129" stroke-linecap="round" stroke-width="4"/>
-    <circle cx="67" cy="12" r="7" fill="#ec9b83"/>
+    <path d="M40 1c19 0 35 15 35 34S59 70 40 70 5 54 5 35 21 1 40 1Z" fill="#C8A77A"/>
+    <path d="M40 12c11 0 20 9 20 20S51 52 40 52 20 43 20 32s9-20 20-20Z" fill="#FAF7F2"/>
+    <path d="M31 20v25h18M31 45V20" fill="none" stroke="#342329" stroke-linecap="round" stroke-width="4"/>
+    <circle cx="67" cy="12" r="7" fill="#B85F70"/>
   </g>
-  <text x="96" y="59" fill="#252129" font-family="Georgia, 'Times New Roman', serif" font-size="46" letter-spacing="-2.5">luminails</text>
-  <circle cx="334" cy="57" r="4" fill="#ec9b83"/>
+  <text x="96" y="59" fill="#342329" font-family="Georgia, 'Times New Roman', serif" font-size="46" letter-spacing="-2.5">luminails</text>
+  <circle cx="334" cy="57" r="4" fill="#B85F70"/>
 </svg>
