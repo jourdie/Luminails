@@ -1,4 +1,4 @@
-﻿'use server';
+'use server';
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '../../lib/supabase/server';
@@ -63,6 +63,36 @@ export async function updateCatalogProduct(previous: AdminActionState, formData:
   return { ok: true, message: 'Produk berhasil diperbarui.' };
 }
 
+export async function createCatalogProduct(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const slug = String(formData.get('slug') ?? '').trim().toLowerCase();
+  const brand = String(formData.get('brand') ?? '').trim();
+  const name = String(formData.get('name') ?? '').trim();
+  const category = String(formData.get('category') ?? '').trim();
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || !brand || !name || !category) return { ok: false, message: 'Slug, brand, nama, dan kategori wajib valid.' };
+  const access = await requireAdmin('catalog');
+  if (!access.ok) return access;
+  const { error } = await access.supabase.from('catalog_products').insert({ slug, brand, name, category, short_description: String(formData.get('short_description') ?? '').trim() || null, is_published: formData.get('is_published') === 'on', sort_order: integerOrZero(formData.get('sort_order')) });
+  if (error) return { ok: false, message: 'Produk belum dibuat. Pastikan slug belum dipakai.' };
+  revalidatePath('/');
+  revalidatePath('/admin');
+  return { ok: true, message: 'Produk baru berhasil dibuat.' };
+}
+
+export async function createCatalogSku(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const productId = String(formData.get('product_id') ?? '').trim();
+  const sku = String(formData.get('sku') ?? '').trim().toUpperCase();
+  const name = String(formData.get('name') ?? '').trim();
+  const categoryLabel = String(formData.get('category_label') ?? '').trim();
+  const referencePrice = optionalInteger(formData.get('public_reference_price_idr'));
+  if (!productId || !/^[A-Z0-9._-]{2,60}$/.test(sku) || !name || !categoryLabel) return { ok: false, message: 'Produk, SKU, nama, dan kategori wajib valid.' };
+  const access = await requireAdmin('catalog');
+  if (!access.ok) return access;
+  const { error } = await access.supabase.from('catalog_skus').insert({ product_id: productId, sku, name, category_label: categoryLabel, public_reference_price_idr: referencePrice, shade_code: String(formData.get('shade_code') ?? '').trim() || null, tone: String(formData.get('tone') ?? 'tone-clear').trim() || 'tone-clear', badge: String(formData.get('badge') ?? '').trim() || null, is_active: formData.get('is_active') === 'on', sort_order: integerOrZero(formData.get('sort_order')) });
+  if (error) return { ok: false, message: 'SKU belum dibuat. Pastikan kode SKU belum dipakai.' };
+  revalidatePath('/');
+  revalidatePath('/admin');
+  return { ok: true, message: 'SKU baru berhasil dibuat.' };
+}
 export async function updatePricingTier(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
   const tierId = String(formData.get('tier_id') ?? '');
   const name = String(formData.get('name') ?? '').trim();

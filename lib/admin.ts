@@ -20,7 +20,7 @@ export type AdminProduct = { id: string; name: string; brand: string; category: 
 export type AdminBrand = { id: string; slug: string; name: string; tagline: string | null; description: string | null; visual_tone: 'clay' | 'ivory' | 'plum' | 'champagne'; is_published: boolean; sort_order: number; };
 export type AdminPackage = { id: string; brand_id: string; brand_name: string; slug: string; title: string; audience: 'home-studio' | 'salon' | 'restock'; description: string; long_description: string | null; price_idr: number; compare_at_price_idr: number | null; badge: string | null; visual_tone: 'clay' | 'ivory' | 'plum'; delivery_note: string | null; status: 'draft' | 'published' | 'archived'; sort_order: number; };
 export type AdminPackageItem = { id: string; package_id: string; sku_id: string; item_name_snapshot: string; item_note: string | null; quantity: number; sort_order: number; };
-export type AdminSku = { id: string; sku: string; name: string; category_label: string; is_active: boolean; };
+export type AdminSku = { id: string; product_id: string; sku: string; name: string; category_label: string; is_active: boolean; };
 export type AdminInventoryLocation = { id: string; code: string; name: string; is_active: boolean; };
 export type AdminInventoryStock = { id: string; location_id: string; location_name: string; sku_id: string; sku_name: string; sku_code: string; on_hand_quantity: number; reserved_quantity: number; reorder_point: number; updated_at: string; };
 export type AdminWhatsappSettings = { phone: string; message: string; is_public: boolean; updated_at: string; };
@@ -120,7 +120,7 @@ export async function getAdminDashboard(): Promise<AdminDashboard> {
     canPackages ? supabase.from('catalog_brands').select('id, slug, name, tagline, description, visual_tone, is_published, sort_order').order('sort_order') : Promise.resolve({ data: [], error: null }),
     canPackages ? supabase.from('commerce_packages').select('id, brand_id, slug, title, audience, description, long_description, price_idr, compare_at_price_idr, badge, visual_tone, delivery_note, status, sort_order').order('sort_order') : Promise.resolve({ data: [], error: null }),
     canPackages ? supabase.from('commerce_package_items').select('id, package_id, sku_id, item_name_snapshot, item_note, quantity, sort_order').order('sort_order') : Promise.resolve({ data: [], error: null }),
-    (canInventory || canPackages) ? supabase.from('catalog_skus').select('id, sku, name, category_label, is_active').order('sort_order') : Promise.resolve({ data: [], error: null }),
+    (canInventory || canPackages || permissions.catalog) ? supabase.from('catalog_skus').select('id, product_id, sku, name, category_label, is_active').order('sort_order') : Promise.resolve({ data: [], error: null }),
     canInventory ? supabase.from('inventory_locations').select('id, code, name, is_active').order('code') : Promise.resolve({ data: [], error: null }),
     canInventory ? supabase.from('inventory_stock').select('id, location_id, sku_id, on_hand_quantity, reserved_quantity, reorder_point, updated_at').order('updated_at', { ascending: false }) : Promise.resolve({ data: [], error: null }),
     canSettings ? supabase.from('commerce_store_settings').select('key, value, is_public, updated_at').eq('key', 'whatsapp').maybeSingle() : Promise.resolve({ data: null, error: null }),
