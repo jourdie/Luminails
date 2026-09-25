@@ -32,7 +32,9 @@ def main():
         page.get_by_role("heading", name="SKU list.").wait_for(state="visible")
         assert page.get_by_role("heading", name="SKU list.").is_visible()
         assert page.get_by_role("table", name="Daftar SKU").is_visible()
-        assert page.get_by_placeholder("Nama / code / brand").is_visible()
+        assert page.get_by_placeholder("Nama / code / series / color").is_visible()
+        assert page.get_by_label("Series", exact=True).first.is_visible()
+        assert page.get_by_label("Color reference").first.is_visible()
 
         print("packages", flush=True)
         page.get_by_role("button", name="Packages").click()

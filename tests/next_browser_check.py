@@ -14,7 +14,7 @@ def main():
         print("home loaded", flush=True)
 
         assert page.locator("h1").inner_text().startswith("Belanja nail supply")
-        assert page.get_by_text("SKU tidak dibeli satuan di sini").is_visible()
+        assert page.get_by_text("SKU hanya untuk katalog digital").is_visible()
         if page.locator(".product-card").count() > 0:
             page.get_by_role("button", name="Color gel", exact=True).click()
             print("catalog filter clicked", flush=True)
