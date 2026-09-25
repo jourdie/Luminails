@@ -29,7 +29,7 @@ export function SiteNavigation({ identity = null, profile = null, needsProfile =
         <Link href="/education" onClick={closeMenu}>Education</Link>
       </nav>
       <div className="header-actions">
-        {identity ? <><AccountIdentity identity={identity} />{tierSummary && <Link className="header-tier-pill" href="/account"><strong>{tierSummary.name}</strong>{tierSummary.next ? <small>Next: {tierSummary.next.name}</small> : <small>Tier tertinggi</small>}</Link>}{needsProfile && <Link className="profile-nudge" href="/account/profile">{profile?.business_name ? 'Perbarui profil' : 'Lengkapi profil'}</Link>}</> : onLoginOpen ? <button className="text-button" onClick={onLoginOpen}>Masuk B2B</button> : <Link className="text-button" href="/auth">Masuk B2B</Link>}
+        {identity ? <><AccountIdentity identity={identity} businessName={profile?.business_name} />{tierSummary && <Link className="header-tier-pill" href="/account"><strong>{tierSummary.name}</strong>{tierSummary.next ? <small>Next: {tierSummary.next.name}</small> : <small>Tier tertinggi</small>}</Link>}{needsProfile && <Link className="profile-nudge" href="/account/profile">{profile?.business_name ? 'Perbarui profil' : 'Lengkapi profil'}</Link>}</> : onLoginOpen ? <button className="text-button" onClick={onLoginOpen}>Masuk B2B</button> : <Link className="text-button" href="/auth">Masuk B2B</Link>}
         {onCartOpen && <button className="cart-button" onClick={onCartOpen} aria-label={`Buka keranjang, ${cartCount} item`}><span>Keranjang</span><b className="cart-count">{cartCount}</b></button>}
       </div>
       <button className="mobile-menu" onClick={() => setMobileMenu((open) => !open)} aria-label="Buka menu" aria-expanded={mobileMenu}><span></span><span></span></button>

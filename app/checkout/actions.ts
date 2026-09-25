@@ -11,6 +11,7 @@ const errorMessages: Record<string, string> = {
   LOGIN_REQUIRED: 'Silakan login terlebih dahulu.',
   PROFILE_REQUIRED: 'Lengkapi profil studio sebelum checkout.',
   ADDRESS_REQUIRED: 'Pilih alamat pengiriman.',
+  CONTACT_PHONE_REQUIRED: 'Masukkan nomor HP untuk update order.',
   PACKAGE_NOT_FOUND: 'Package tidak tersedia atau sudah tidak dipublikasikan.',
   INVALID_QUANTITY: 'Jumlah package tidak valid.',
   PROMOTION_NOT_ELIGIBLE: 'Promo ini belum eligible untuk akun atau package Anda.',
@@ -63,6 +64,8 @@ export async function submitCheckoutOrder(_previous: CheckoutActionState, formDa
   const packageSlug = String(formData.get('package_slug') ?? '').trim();
   const quantity = Number(formData.get('quantity') ?? 1);
   const addressId = String(formData.get('address_id') ?? '').trim();
+  const contactPhone = String(formData.get('contact_phone') ?? '').trim();
+  if (!/^[0-9+()\-\s]{8,30}$/.test(contactPhone) || contactPhone.replace(/\D/g, '').length < 8) return { ok: false, message: errorMessages.CONTACT_PHONE_REQUIRED };
   const promotionCode = String(formData.get('promotion_code') ?? '').trim() || null;
   const shippingMethod = String(formData.get('shipping_method') ?? 'paxel_factory');
   const shippingProvider = String(formData.get('shipping_provider') ?? 'paxel');
@@ -87,7 +90,7 @@ export async function submitCheckoutOrder(_previous: CheckoutActionState, formDa
     return { ok: false, message: errorMessages.INVALID_PACKAGE_BENEFIT_SELECTION };
   }
 
-  const { data, error } = await (supabase as any).rpc('create_checkout_order_with_reward_quantity', {
+  const { data, error } = await (supabase as any).rpc('create_checkout_order_with_contact_phone', {
     p_package_slug: packageSlug,
     p_quantity: quantity,
     p_address_id: addressId,
@@ -101,6 +104,7 @@ export async function submitCheckoutOrder(_previous: CheckoutActionState, formDa
     p_idempotency_key: idempotencyKey,
     p_selected_skus: selectedSkus.length ? selectedSkus : null,
     p_selected_benefits: selectedBenefits.length ? selectedBenefits : null,
+    p_contact_phone: contactPhone,
   } as never);
   if (error) return { ok: false, message: readableError(error) };
 

@@ -129,7 +129,7 @@ function NotificationAction({ notification }: { notification: AdminDashboard['no
 }
 
 function OrderRow({ order, expanded }: { order: AdminDashboard['orders'][number]; expanded?: boolean }) {
-  return <div className={`order-row${expanded ? ' order-row-expanded' : ''}`}><div><b>{order.id.slice(0, 14)}</b><small>{date(order.created_at)}</small></div><span className={`status-pill status-${order.status}`}>{order.status.replaceAll('_', ' ')}</span><span className="payment-copy">{order.payment_status === 'paid' ? 'Sudah dibayar' : 'Belum dibayar'}</span><strong>{money(order.total_idr)}</strong>{expanded && <TrackingEditor order={order} />}</div>;
+  return <div className={`order-row${expanded ? ' order-row-expanded' : ''}`}><div><b>{order.id.slice(0, 14)}</b><small>{date(order.created_at)}</small><small>Kontak: {order.contact_phone ?? '-'}</small></div><span className={`status-pill status-${order.status}`}>{order.status.replaceAll('_', ' ')}</span><span className="payment-copy">{order.payment_status === 'paid' ? 'Sudah dibayar' : 'Belum dibayar'}</span><strong>{money(order.total_idr)}</strong>{expanded && <TrackingEditor order={order} />}</div>;
 }
 
 function TrackingEditor({ order }: { order: AdminDashboard['orders'][number] }) {
