@@ -43,7 +43,9 @@ export function buildRepeatOrderHref(order: CustomerOrder) {
   const slug = packageItem.sku_snapshot.slice('PACKAGE:'.length).trim();
   if (!slug) return null;
   const params = new URLSearchParams({ package: slug, quantity: String(packageItem.quantity) });
-  const selected = packageItem.metadata && Array.isArray(packageItem.metadata.selected_skus) ? packageItem.metadata.selected_skus.filter((row): row is { sku_id: string; quantity: number } => typeof row === 'object' && row !== null && typeof (row as { sku_id?: unknown }).sku_id === 'string' && Number.isInteger((row as { quantity?: unknown }).quantity) && Number((row as { quantity: number }).quantity) > 0).map((row) => ({ skuId: row.sku_id, quantity: row.quantity })) : [];
+  const metadataSelection = packageItem.metadata && Array.isArray(packageItem.metadata.selected_skus) ? packageItem.metadata.selected_skus.filter((row): row is { sku_id: string; quantity: number } => typeof row === 'object' && row !== null && typeof (row as { sku_id?: unknown }).sku_id === 'string' && Number.isInteger((row as { quantity?: unknown }).quantity) && Number((row as { quantity: number }).quantity) > 0).map((row) => ({ skuId: row.sku_id, quantity: row.quantity })) : [];
+  const legacySelection = order.items.filter((item) => item.item_type === 'component' && item.metadata?.free_pick === true && item.sku_id && packageItem.quantity > 0).map((item) => ({ skuId: item.sku_id as string, quantity: item.quantity / packageItem.quantity })).filter((row) => Number.isInteger(row.quantity) && row.quantity > 0);
+  const selected = metadataSelection.length ? metadataSelection : legacySelection;
   if (selected.length) params.set('selection', JSON.stringify(selected));
   return '/checkout?' + params.toString();
 }
