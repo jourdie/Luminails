@@ -21,7 +21,7 @@ export function Storefront({ products, promotions, identity, profile, needsProfi
     const normalized = query.trim().toLowerCase();
     const filtered = products.filter((product) => {
       const categoryMatch = filter === 'all' || product.category === filter;
-      const queryMatch = !normalized || `${product.brand} ${product.name} ${product.sku}`.toLowerCase().includes(normalized);
+      const queryMatch = !normalized || `${product.brand} ${product.name} ${product.sku} ${product.series} ${product.color}`.toLowerCase().includes(normalized);
       return categoryMatch && queryMatch;
     });
     if (sort === 'price-low') return [...filtered].sort((a, b) => a.price - b.price);
@@ -60,7 +60,7 @@ export function Storefront({ products, promotions, identity, profile, needsProfi
         <section className="signal-band" id="how-it-works"><div className="signal-intro"><span className="signal-mark">*</span><p>Order berulang<br /><em>tanpa mulai dari nol.</em></p></div><div className="signal-item"><span>01</span><p><b>Harga B2B rapi</b>Tier dan harga akunmu muncul otomatis.</p></div><div className="signal-item"><span>02</span><p><b>Review sebelum bayar</b>Ongkir final dikonfirmasi setelah allocation.</p></div><div className="signal-item"><span>03</span><p><b>Repeat semudah satu klik</b>Riwayat order jadi katalog personalmu.</p></div></section>
 
         <section className="catalog-section section-pad" id="catalog">
-          <div className="section-heading"><div><p className="eyebrow">SKU reference</p><h2>See what can<br /><em>fill your package.</em></h2></div><p className="section-intro">SKU tidak dibeli satuan di sini. Pilih package untuk menentukan isi, jumlah, dan alur pengiriman.</p></div>
+          <div className="section-heading"><div><p className="eyebrow">SKU reference</p><h2>See what can<br /><em>fill your package.</em></h2></div><p className="section-intro">SKU hanya untuk katalog digital. Cari nama, series, atau color reference seperti red / maroon; checkout tetap dilakukan melalui package.</p></div>
           <div className="catalog-toolbar"><label className="search-box"><span aria-hidden="true">⌕</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari produk atau SKU" aria-label="Cari produk atau SKU" /></label><div className="filter-list" role="group" aria-label="Filter kategori">{[['all', 'Semua'], ['gel', 'Color gel'], ['prep', 'Prep'], ['tools', 'Tools']].map(([value, label]) => <button key={value} className={`filter-chip${filter === value ? ' is-active' : ''}`} onClick={() => setFilter(value)}>{label}</button>)}</div><label className="sort-select">Urutkan <select value={sort} onChange={(event) => setSort(event.target.value)} aria-label="Urutkan produk"><option value="featured">Pilihan kami</option><option value="price-low">Harga terendah</option><option value="price-high">Harga tertinggi</option></select></label></div>
           <div className="catalog-meta"><span><b>{visibleProducts.length}</b> SKU reference</span><span className="catalog-note">Pilih package untuk checkout · Login untuk tier akunmu</span></div>
           {visibleProducts.length > 0 ? <div className="product-grid">{visibleProducts.map((product) => <ProductCard key={product.id} product={product}  />)}</div> : <div className="empty-state"><span>◎</span><h3>Belum ketemu.</h3><p>Coba kata kunci lain atau reset filter katalog.</p><button className="button button-outline" onClick={resetCatalog}>Reset katalog</button></div>}

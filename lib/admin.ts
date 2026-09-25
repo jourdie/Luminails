@@ -26,7 +26,7 @@ export type AdminPackageEligibility = { id: string; package_id: string; customer
 export type AdminPackageBenefit = { id: string; package_id: string; customer_tier_id: string | null; reward_sku_id: string; quantity: number; variant_rule: 'admin_selected' | 'customer_selected'; notes: string | null; allowed_sku_ids?: string[]; };
 export type AdminPackageBenefitAllowedSku = { benefit_id: string; sku_id: string; sort_order: number; };
 export type AdminPackageImage = { id: string; package_id: string; image_url: string; alt_text: string | null; sort_order: number; };
-export type AdminSku = { id: string; product_id: string; sku: string; name: string; category_label: string; public_reference_price_idr: number | null; badge: string | null; is_active: boolean; sort_order: number; };
+export type AdminSku = { id: string; product_id: string; sku: string; name: string; category_label: string; series: string | null; color: string | null; public_reference_price_idr: number | null; badge: string | null; is_active: boolean; sort_order: number; };
 export type AdminInventoryLocation = { id: string; code: string; name: string; is_active: boolean; };
 export type AdminInventoryStock = { id: string; location_id: string; location_name: string; sku_id: string; sku_name: string; sku_code: string; on_hand_quantity: number; reserved_quantity: number; reorder_point: number; updated_at: string; };
 export type AdminWhatsappSettings = { phone: string; message: string; is_public: boolean; updated_at: string; };
@@ -94,9 +94,9 @@ const demoBrands: AdminBrand[] = [
   { id: 'demo-brand-bluesky', slug: 'bluesky', name: 'Bluesky', tagline: 'Colour, edited.', description: 'Demo brand untuk preview admin.', visual_tone: 'ivory', is_published: true, sort_order: 10 },
 ];
 const demoSkus: AdminSku[] = [
-  { id: 'demo-sku-starter-001', product_id: 'demo-petal-glow', sku: 'BS-STARTER-001', name: 'Starter nude 01', category_label: 'Color gel', public_reference_price_idr: 100000, badge: null, is_active: true, sort_order: 10 },
-  { id: 'demo-sku-rubber-base-001', product_id: 'demo-rubber-base', sku: 'RB-MILKY-001', name: 'Rubber Base Milky', category_label: 'Base gel', public_reference_price_idr: 140000, badge: null, is_active: true, sort_order: 20 },
-  { id: 'demo-sku-ph-bond-001', product_id: 'demo-ph-bond', sku: 'LN-PHBOND-001', name: 'PH Bond', category_label: 'Prep', public_reference_price_idr: 90000, badge: null, is_active: true, sort_order: 30 },
+  { id: 'demo-sku-starter-001', product_id: 'demo-petal-glow', sku: 'BS-STARTER-001', name: 'Starter nude 01', category_label: 'Color gel', series: 'Spring edit', color: 'Nude / Beige', public_reference_price_idr: 100000, badge: null, is_active: true, sort_order: 10 },
+  { id: 'demo-sku-rubber-base-001', product_id: 'demo-rubber-base', sku: 'RB-MILKY-001', name: 'Rubber Base Milky', category_label: 'Base gel', series: 'Essentials', color: 'Milky / White', public_reference_price_idr: 140000, badge: null, is_active: true, sort_order: 20 },
+  { id: 'demo-sku-ph-bond-001', product_id: 'demo-ph-bond', sku: 'LN-PHBOND-001', name: 'PH Bond', category_label: 'Prep', series: 'Prep essentials', color: 'Clear', public_reference_price_idr: 90000, badge: null, is_active: true, sort_order: 30 },
 ];
 const demoOrders: AdminOrder[] = [
   { id: 'LN-DEMO-2481', status: 'submitted_for_review', payment_status: 'pending', fulfillment_status: 'unallocated', total_idr: 1820000, created_at: '2026-09-22T09:12:00.000Z' },
@@ -166,7 +166,7 @@ export async function getAdminDashboard(): Promise<AdminDashboard> {
     canPackages ? supabase.from('commerce_package_allowed_skus').select('package_id, sku_id, sort_order').order('sort_order') : Promise.resolve({ data: [], error: null }),
     canPackages ? supabase.from('commerce_package_images').select('id, package_id, image_url, alt_text, sort_order').order('sort_order') : Promise.resolve({ data: [], error: null }),
     canPackages ? supabase.from('commerce_package_prices').select('id, package_id, pricing_tier_id, unit_price_idr, effective_from, effective_until, is_active').eq('is_active', true).order('effective_from', { ascending: false }) : Promise.resolve({ data: [], error: null }),
-    (canInventory || canPackages || permissions.catalog) ? supabase.from('catalog_skus').select('id, product_id, sku, name, category_label, public_reference_price_idr, badge, is_active, sort_order').order('sort_order') : Promise.resolve({ data: [], error: null }),
+    (canInventory || canPackages || permissions.catalog) ? supabase.from('catalog_skus').select('id, product_id, sku, name, category_label, series, color, public_reference_price_idr, badge, is_active, sort_order').order('sort_order') : Promise.resolve({ data: [], error: null }),
     canInventory ? supabase.from('inventory_locations').select('id, code, name, is_active').order('code') : Promise.resolve({ data: [], error: null }),
     canInventory ? supabase.from('inventory_stock').select('id, location_id, sku_id, on_hand_quantity, reserved_quantity, reorder_point, updated_at').order('updated_at', { ascending: false }) : Promise.resolve({ data: [], error: null }),
     canSettings ? supabase.from('commerce_store_settings').select('key, value, is_public, updated_at').eq('key', 'whatsapp').maybeSingle() : Promise.resolve({ data: null, error: null }),
@@ -190,7 +190,7 @@ export async function getAdminDashboard(): Promise<AdminDashboard> {
 
   const brands = (brandsResponse.data ?? []) as AdminBrand[];
   const brandById = new Map(brands.map((brand) => [brand.id, brand.name]));
-  const skus = (skusResponse.data ?? []) as AdminSku[];
+  const skus = (skusResponse.data ?? []) as unknown as AdminSku[];
   const skuById = new Map(skus.map((sku) => [sku.id, sku]));
   const locations = (locationsResponse.data ?? []) as AdminInventoryLocation[];
   const locationById = new Map(locations.map((location) => [location.id, location]));

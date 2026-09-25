@@ -147,6 +147,8 @@ export async function createCatalogSku(previous: AdminActionState, formData: For
   const sku = String(formData.get('sku') ?? '').trim().toUpperCase();
   const name = String(formData.get('name') ?? '').trim();
   const categoryLabel = String(formData.get('category_label') ?? '').trim();
+  const series = String(formData.get('series') ?? '').trim() || null;
+  const color = String(formData.get('color') ?? '').trim() || null;
   const referencePrice = moneyInteger(formData.get('public_reference_price_idr'));
   if ((!productId && !brandId) || !/^[A-Z0-9._-]{2,60}$/.test(sku)) return { ok: false, message: 'Pilih brand dan isi SKU code dengan huruf kapital, angka, titik, strip, atau underscore.' };
   if (!name) return { ok: false, message: 'Nama SKU wajib diisi.' };
@@ -167,7 +169,7 @@ export async function createCatalogSku(previous: AdminActionState, formData: For
     }
   }
 
-  const { error } = await access.supabase.from('catalog_skus').insert({ product_id: productId, sku, name, category_label: categoryLabel, public_reference_price_idr: referencePrice, shade_code: null, tone: 'tone-clear', badge: String(formData.get('badge') ?? '').trim() || null, is_active: formData.get('is_active') === 'on', sort_order: integerOrZero(formData.get('sort_order')) });
+  const { error } = await access.supabase.from('catalog_skus').insert({ product_id: productId, sku, name, category_label: categoryLabel, series, color, public_reference_price_idr: referencePrice, shade_code: null, tone: 'tone-clear', badge: String(formData.get('badge') ?? '').trim() || null, is_active: formData.get('is_active') === 'on', sort_order: integerOrZero(formData.get('sort_order')) });
   if (error) return { ok: false, message: error.code === '23505' ? 'SKU code sudah digunakan. Gunakan SKU code lain.' : 'SKU belum dibuat. Periksa parent brand, kategori, dan koneksi database.' };
   revalidatePath('/'); revalidatePath('/admin');
   return { ok: true, message: 'SKU baru berhasil dibuat.' };
@@ -177,6 +179,8 @@ export async function updateCatalogSku(previous: AdminActionState, formData: For
   const sku = String(formData.get('sku') ?? '').trim().toUpperCase();
   const name = String(formData.get('name') ?? '').trim();
   const categoryLabel = String(formData.get('category_label') ?? '').trim();
+  const series = String(formData.get('series') ?? '').trim() || null;
+  const color = String(formData.get('color') ?? '').trim() || null;
   const referencePrice = moneyInteger(formData.get('public_reference_price_idr'));
   if (!skuId) return { ok: false, message: 'SKU ID tidak ditemukan.' };
   if (!/^[A-Z0-9._-]{2,60}$/.test(sku)) return { ok: false, message: 'SKU code tidak valid.' };
@@ -185,7 +189,7 @@ export async function updateCatalogSku(previous: AdminActionState, formData: For
 
   const access = await requireAnyAdmin(['catalog', 'packages']);
   if (!access.ok) return access;
-  const { error } = await access.supabase.from('catalog_skus').update({ sku, name, category_label: categoryLabel, public_reference_price_idr: referencePrice, badge: String(formData.get('badge') ?? '').trim() || null, is_active: formData.get('is_active') === 'on', sort_order: integerOrZero(formData.get('sort_order')) }).eq('id', skuId);
+  const { error } = await access.supabase.from('catalog_skus').update({ sku, name, category_label: categoryLabel, series, color, public_reference_price_idr: referencePrice, badge: String(formData.get('badge') ?? '').trim() || null, is_active: formData.get('is_active') === 'on', sort_order: integerOrZero(formData.get('sort_order')) }).eq('id', skuId);
   if (error) return { ok: false, message: error.code === '23505' ? 'SKU code sudah digunakan SKU lain.' : 'SKU belum diperbarui. Periksa data dan koneksi database.' };
   revalidatePath('/'); revalidatePath('/admin'); revalidatePath('/packages'); revalidatePath('/brands');
   return { ok: true, message: 'SKU berhasil diperbarui.' };

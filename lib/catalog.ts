@@ -6,6 +6,8 @@ export type CatalogProduct = {
   name: string;
   category: string;
   categoryLabel: string;
+  series: string;
+  color: string;
   price: number;
   sku: string;
   badge: string;
@@ -17,6 +19,8 @@ type CatalogRow = {
   sku: string;
   name: string;
   category_label: string;
+  series: string | null;
+  color: string | null;
   public_reference_price_idr: number | null;
   badge: string | null;
   catalog_products: { id: string; brand: string; name: string; category: string } | { id: string; brand: string; name: string; category: string }[];
@@ -51,7 +55,7 @@ export async function getCatalogProducts(): Promise<CatalogProduct[]> {
   }
   const { data: rawData, error } = await supabase
     .from('catalog_skus')
-    .select('id, sku, name, category_label, public_reference_price_idr, badge, catalog_products!inner(id, brand, name, category)')
+    .select('id, sku, name, category_label, series, color, public_reference_price_idr, badge, catalog_products!inner(id, brand, name, category)')
     .eq('is_active', true)
     .eq('catalog_products.is_published', true)
     .order('sort_order');
@@ -67,6 +71,8 @@ export async function getCatalogProducts(): Promise<CatalogProduct[]> {
       name: item.name || product.name,
       category: product.category,
       categoryLabel: item.category_label,
+      series: item.series ?? '',
+      color: item.color ?? '',
       price: item.public_reference_price_idr ?? 0,
       sku: item.sku,
       badge: item.badge ?? 'Pilihan studio',

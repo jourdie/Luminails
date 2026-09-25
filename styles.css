@@ -755,7 +755,7 @@ h1 em, h2 em { color: var(--lilac-deep); font-style: italic; }
 .sku-filter{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:9px}
 .sku-filter select{min-width:130px;padding:8px;border:1px solid var(--line);background:transparent;color:var(--ink);font:inherit}
 .sku-table{overflow-x:auto}
-.sku-table-head,.sku-table-row{display:grid;grid-template-columns:minmax(100px,.8fr) minmax(180px,1.35fr) minmax(130px,1fr) minmax(130px,1fr) minmax(190px,1.3fr);gap:12px;align-items:start;min-width:860px}
+.sku-table-head,.sku-table-row{display:grid;grid-template-columns:minmax(100px,.8fr) minmax(180px,1.35fr) minmax(130px,1fr) minmax(130px,1fr) minmax(130px,1fr) minmax(130px,1fr) minmax(190px,1.3fr);gap:12px;align-items:start;min-width:1120px}
 .sku-table-head{padding:10px 0;color:var(--muted);font-size:8px;text-transform:uppercase;letter-spacing:.08em}
 .sku-table-row{padding:14px 0;border-top:1px solid var(--line)}
 .sku-table-row>div{min-width:0}
