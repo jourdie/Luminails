@@ -4,20 +4,20 @@ import { useActionState } from 'react';
 import { setAdminMembershipStatus, upsertAdminMembership, type AdminActionState } from '../app/admin/actions';
 import type { AdminMembership } from '../lib/admin';
 
-const ADMIN_PERMISSION_KEYS = ['catalog', 'orders', 'notifications', 'pricing', 'promotions', 'packages', 'inventory', 'settings'] as const;
+const ACCESS_MODULES = [
+  { key: 'overview', label: 'Ringkasan', permission: null },
+  { key: 'brands', label: 'Brand register', permission: 'packages' },
+  { key: 'catalog', label: 'SKU list', permission: 'catalog' },
+  { key: 'packages', label: 'Packages', permission: 'packages' },
+  { key: 'inventory', label: 'Inventory', permission: 'inventory' },
+  { key: 'pricing', label: 'B2B Tier', permission: 'pricing' },
+  { key: 'promotions', label: 'Promosi', permission: 'promotions' },
+  { key: 'orders', label: 'Transaksi', permission: 'orders' },
+  { key: 'settings', label: 'WhatsApp', permission: 'settings' },
+] as const;
+
 
 const initialState: AdminActionState = { ok: false, message: '' };
-
-const permissionLabels: Record<(typeof ADMIN_PERMISSION_KEYS)[number], string> = {
-  catalog: 'Produk & katalog',
-  orders: 'Transaksi',
-  notifications: 'Notifikasi',
-  pricing: 'Pricing B2B',
-  promotions: 'Promosi',
-  packages: 'Package & brand',
-  inventory: 'Inventory',
-  settings: 'WhatsApp setting',
-};
 
 const roleLabels: Record<Exclude<AdminMembership['role'], 'owner'>, string> = {
   catalog_manager: 'Catalog manager',
@@ -37,7 +37,7 @@ export function AdminMembershipConsole({ memberships, canManage }: { memberships
           <div><p className="eyebrow">Access control</p><h3>Tambah atau ubah admin</h3></div>
           <span className="notification-count">Owner only</span>
         </div>
-        <p className="admin-help-copy">Email harus sudah pernah login dengan Google di aplikasi. Pilih role sebagai titik awal, lalu sesuaikan permission di bawah.</p>
+        <p className="admin-help-copy">Email harus sudah pernah login dengan Google di aplikasi. Pilih role sebagai titik awal, lalu sesuaikan akses modul di bawah. Ringkasan selalu tersedia; Brand register dan Packages masih berbagi satu permission.</p>
         <form className="admin-membership-form" action={formAction}>
           <label>Email Google<input name="email" type="email" placeholder="admin@studio.com" required /></label>
           <label>Role
@@ -48,12 +48,17 @@ export function AdminMembershipConsole({ memberships, canManage }: { memberships
             </select>
           </label>
           <div className="admin-permission-field">
-            <span className="admin-field-label">Akses yang diizinkan</span>
+            <span className="admin-field-label">Akses modul</span>
             <div className="admin-permission-grid">
-              {ADMIN_PERMISSION_KEYS.map((permission) => (
-                <label className="admin-check" key={permission}>
-                  <input name={`permission_${permission}`} type="checkbox" defaultChecked={permission === 'orders' || permission === 'notifications'} />
-                  {permissionLabels[permission]}
+              {ACCESS_MODULES.map((module) => module.permission ? (
+                <label className="admin-check" key={module.key}>
+                  <input name={`permission_${module.key}`} type="checkbox" defaultChecked={module.key === 'orders'} />
+                  {module.label}
+                </label>
+              ) : (
+                <label className="admin-check is-always-on" key={module.key}>
+                  <input type="checkbox" checked readOnly disabled />
+                  {module.label}
                 </label>
               ))}
             </div>
@@ -78,8 +83,10 @@ export function AdminMembershipConsole({ memberships, canManage }: { memberships
 
 function AdminMembershipRow({ membership }: { membership: AdminMembership }) {
   const [state, formAction, pending] = useActionState(setAdminMembershipStatus, initialState);
+  const [editState, editFormAction, editPending] = useActionState(upsertAdminMembership, initialState);
   const initials = membership.display_name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'LN';
-  const permissionCount = ADMIN_PERMISSION_KEYS.filter((permission) => membership.role === 'owner' || membership.permissions?.[permission]).length;
+  const enabledModules = ACCESS_MODULES.filter((module) => membership.role === 'owner' || module.permission === null || membership.permissions?.[module.permission]);
+  const permissionCount = enabledModules.length;
 
   return (
     <div className={`admin-membership-row${membership.is_active ? '' : ' is-disabled'}`}>
@@ -88,8 +95,19 @@ function AdminMembershipRow({ membership }: { membership: AdminMembership }) {
         <div><strong>{membership.display_name}</strong><small>{membership.email}</small></div>
       </div>
       <div className="admin-membership-meta"><b>{membership.role === 'owner' ? 'Super admin' : roleLabels[membership.role]}</b><span>{membership.role === 'owner' ? 'Semua akses' : `${permissionCount} area aktif`}</span></div>
-      <div className="admin-membership-permissions">{ADMIN_PERMISSION_KEYS.filter((permission) => membership.role === 'owner' || membership.permissions?.[permission]).map((permission) => <span key={permission}>{permissionLabels[permission]}</span>)}</div>
-      {membership.role === 'owner' ? <span className="admin-owner-badge">Owner</span> : <form action={formAction}><input type="hidden" name="user_id" value={membership.user_id} /><input type="hidden" name="is_active" value={membership.is_active ? 'false' : 'true'} /><button className="button button-outline admin-status-button" type="submit" disabled={pending}>{pending ? '...' : membership.is_active ? 'Nonaktifkan' : 'Aktifkan'}</button>{state.message && <small className={state.ok ? 'action-success' : 'action-error'}>{state.message}</small>}</form>}
+      <div className="admin-membership-permissions">{enabledModules.map((module) => <span key={module.key}>{module.label}</span>)}</div>
+      {membership.role === 'owner' ? <span className="admin-owner-badge">Owner</span> : <div className="admin-membership-actions">
+        {membership.is_active && <details className="admin-membership-edit">
+          <summary className="button button-outline">Edit akses</summary>
+          <form className="admin-membership-edit-form" action={editFormAction}>
+            <input type="hidden" name="email" value={membership.email ?? ''} />
+            <label>Role<select name="role" defaultValue={membership.role}>{Object.entries(roleLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+            <div className="admin-permission-field"><span className="admin-field-label">Modul yang boleh dibuka</span><div className="admin-permission-grid">{ACCESS_MODULES.map((module) => module.permission ? <label className="admin-check" key={module.key}><input name={`permission_${module.key}`} type="checkbox" defaultChecked={Boolean(membership.permissions?.[module.permission])} />{module.label}</label> : <label className="admin-check is-always-on" key={module.key}><input type="checkbox" checked readOnly disabled />{module.label}</label>)}</div></div>
+            <div className="admin-membership-edit-foot"><small className={editState.message ? (editState.ok ? 'action-success' : 'action-error') : 'admin-form-note'}>{editState.message || 'Centang modul yang boleh diakses user ini.'}</small><button className="button button-dark" type="submit" disabled={editPending || !membership.email}>{editPending ? 'Menyimpan...' : 'Simpan akses'}</button></div>
+          </form>
+        </details>}
+        <form className="admin-membership-status-form" action={formAction}><input type="hidden" name="user_id" value={membership.user_id} /><input type="hidden" name="is_active" value={membership.is_active ? 'false' : 'true'} /><button className="button button-outline admin-status-button" type="submit" disabled={pending}>{pending ? '...' : membership.is_active ? 'Nonaktifkan' : 'Aktifkan'}</button>{state.message && <small className={state.ok ? 'action-success' : 'action-error'}>{state.message}</small>}</form>
+      </div>}
     </div>
   );
 }

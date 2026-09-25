@@ -25,6 +25,7 @@ export async function saveCustomerProfile(_previous: ProfileActionState, formDat
   const avatarUrl = typeof (metadata.avatar_url ?? metadata.picture) === 'string' ? String(metadata.avatar_url ?? metadata.picture) : null;
   const { error } = await supabase.from('customer_profiles').upsert({
     id: authData.user.id,
+    email: authData.user.email ?? null,
     display_name: displayName,
     business_name: businessName,
     business_type: studioType,

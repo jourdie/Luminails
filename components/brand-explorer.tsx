@@ -3,8 +3,11 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import type { BrandPackage } from '../lib/packages';
+import type { StorefrontPromotion } from '../lib/promotions-server';
+import { PromoNotice } from './promo-notice';
 import { formatIDR } from '../lib/packages';
 import { SiteNavigation } from './site-navigation';
+import type { AccountTierSummary } from '../lib/account-server';
 
 const segments = [
   { value: 'all', label: 'All packages' },
@@ -13,7 +16,7 @@ const segments = [
   { value: 'restock', label: 'Restock' },
 ] as const;
 
-export function BrandExplorer({ packages }: { packages: BrandPackage[] }) {
+export function BrandExplorer({ packages, promotions, tierSummary }: { packages: BrandPackage[]; promotions: StorefrontPromotion[]; tierSummary?: AccountTierSummary | null }) {
   const [brand, setBrand] = useState('all');
   const [segment, setSegment] = useState<(typeof segments)[number]['value']>('all');
 
@@ -38,7 +41,8 @@ export function BrandExplorer({ packages }: { packages: BrandPackage[] }) {
 
   return (
     <>
-      <SiteNavigation />
+      <SiteNavigation tierSummary={tierSummary} />
+      <PromoNotice promotions={promotions} />
       <main className="brand-portal">
       <section className="brand-portal-hero brand-stage">
         <div className="brand-stage-image" aria-hidden="true">
@@ -74,7 +78,7 @@ export function BrandExplorer({ packages }: { packages: BrandPackage[] }) {
         <div className="brand-portal-shell">
           <div className="brand-section-head brand-section-head-compact"><span className="brand-section-index">02 / Choose your rhythm</span><div><h2>Packages with a<br /><em>clear point of view.</em></h2><p>No marketplace clutter. Just the next shelf decision, made easier.</p></div></div>
           <div className="brand-segment-tabs">{segments.map((item) => <button key={item.value} className={segment === item.value ? 'is-active' : ''} onClick={() => setSegment(item.value)}>{item.label}</button>)}</div>
-          <div className="brand-package-grid">{visiblePackages.map((item) => <PackageCard key={item.slug} item={item} />)}</div>
+          <div className="brand-package-grid">{visiblePackages.map((item) => <PackageCard key={item.slug} item={item} promotion={promotions[0]} />)}</div>
           {visiblePackages.length === 0 && <div className="brand-empty">No package in this edit yet. Try another brand or studio rhythm.</div>}
         </div>
       </section>
@@ -87,6 +91,6 @@ export function BrandExplorer({ packages }: { packages: BrandPackage[] }) {
   );
 }
 
-function PackageCard({ item }: { item: BrandPackage }) {
-  return <Link className={`brand-package-card brand-package-card-${item.tone}`} href={`/packages/${item.slug}`}><div className="brand-package-art"><span>{item.badge}</span><div className="brand-mini-bottle"></div><small>{item.brand}</small></div><div className="brand-package-copy"><p>{item.audience.replace('-', ' ')}</p><h3>{item.title}</h3><span>{item.description}</span><strong>{formatIDR(item.price)} <em>per package</em></strong><b className="brand-package-arrow">-&gt;</b></div></Link>;
+function PackageCard({ item, promotion }: { item: BrandPackage; promotion?: StorefrontPromotion }) {
+  return <Link className={`brand-package-card brand-package-card-${item.tone}`} href={`/packages/${item.slug}`}><div className="brand-package-art"><span>{item.badge}</span>{promotion && <b className="package-promo-badge">Promo {promotion.code}</b>}{item.imageUrl ? <img className="brand-package-photo" src={item.imageUrl} alt={item.title} loading="lazy" /> : <div className="brand-package-no-photo">Foto belum tersedia</div>}<small>{item.brand}</small></div><div className="brand-package-copy"><p>{item.audience.replace('-', ' ')}</p><h3>{item.title}</h3><span>{item.description}</span><strong>{formatIDR(item.price)} <em>{item.priceLabel ?? 'per package'}</em></strong><b className="brand-package-arrow">-&gt;</b></div></Link>;
 }

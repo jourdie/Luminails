@@ -44,6 +44,7 @@ export type Database = {
           minimum_lifetime_spend_idr: number;
           minimum_paid_order_count: number;
           price_visibility: 'standard' | 'premium_b2b';
+          customer_role: 'all' | 'home_studio' | 'salon' | 'distributor' | 'vip';
           is_active: boolean;
           sort_order: number;
         };
@@ -131,13 +132,25 @@ export type Database = {
         Relationships: [];
       };
       commerce_packages: {
-        Row: { id: string; brand_id: string; slug: string; title: string; audience: 'home-studio' | 'salon' | 'restock'; description: string; long_description: string | null; price_idr: number; compare_at_price_idr: number | null; badge: string | null; visual_tone: 'clay' | 'ivory' | 'plum'; delivery_note: string | null; status: 'draft' | 'published' | 'archived'; sort_order: number; created_at: string; updated_at: string; };
+        Row: { id: string; brand_id: string; slug: string; title: string; audience: string; description: string; long_description: string | null; price_idr: number; compare_at_price_idr: number | null; badge: string | null; visual_tone: 'clay' | 'ivory' | 'plum'; delivery_note: string | null; selection_mode: 'fixed' | 'free_pick'; selection_capacity: number | null; status: 'draft' | 'published' | 'archived'; sort_order: number; created_at: string; updated_at: string; };
         Insert: Record<string, unknown>;
         Update: Record<string, unknown>;
         Relationships: [];
       };
       commerce_package_items: {
         Row: { id: string; package_id: string; sku_id: string; item_name_snapshot: string; item_note: string | null; quantity: number; sort_order: number; created_at: string; };
+        Insert: Record<string, unknown>;
+        Update: Record<string, unknown>;
+        Relationships: [];
+      };
+      commerce_package_allowed_skus: {
+        Row: { package_id: string; sku_id: string; sort_order: number; created_at: string; };
+        Insert: Record<string, unknown>;
+        Update: Record<string, unknown>;
+        Relationships: [];
+      };
+      commerce_package_images: {
+        Row: { id: string; package_id: string; image_url: string; alt_text: string | null; sort_order: number; created_at: string; };
         Insert: Record<string, unknown>;
         Update: Record<string, unknown>;
         Relationships: [];
@@ -251,7 +264,7 @@ export type Database = {
           Returns: undefined;
         };
         cancel_checkout_order: { Args: { p_order_id: string; }; Returns: Json; };
-        create_checkout_order: { Args: { p_package_slug: string; p_quantity: number; p_address_id: string; p_customer_notes?: string | null; p_promotion_code?: string | null; p_shipping_method?: string; p_shipping_provider?: string | null; p_reward_sku_id?: string | null; p_reward_points?: number; p_idempotency_key?: string | null; }; Returns: Json; };
+        create_checkout_order: { Args: { p_package_slug: string; p_quantity: number; p_address_id: string; p_customer_notes?: string | null; p_promotion_code?: string | null; p_shipping_method?: string; p_shipping_provider?: string | null; p_reward_sku_id?: string | null; p_reward_points?: number; p_idempotency_key?: string | null; p_selected_skus?: Json | null; }; Returns: Json; };
         set_admin_membership_status: {
           Args: { p_user_id: string; p_is_active: boolean; };
           Returns: undefined;

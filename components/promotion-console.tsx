@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import { createPromotion, updatePromotion, type AdminActionState } from '../app/admin/actions';
+import { createPromotion, updatePromotion, deletePromotion, type AdminActionState } from '../app/admin/actions';
 import type { AdminPromotion } from '../lib/admin';
 
 const typeLabels: Record<AdminPromotion['promotion_type'], string> = {
@@ -24,7 +24,8 @@ export function PromotionConsole({ promotions, canEdit }: { promotions: AdminPro
 }
 
 function PromotionEditor({ promotion, canEdit }: { promotion: AdminPromotion; canEdit: boolean }) {
-  return <div className="admin-panel promotion-card"><div className="promotion-card-heading"><div><span className={`promotion-type promotion-type-${promotion.promotion_type}`}>{typeLabels[promotion.promotion_type]}</span><h3>{promotion.name}</h3><p>{promotion.code}{promotion.voucher_code ? ` · Voucher ${promotion.voucher_code}` : ''}</p></div><div className="promotion-status"><span className={`status-pill status-${promotion.status}`}>{promotion.status}</span><small>{promotion.usage_count}{promotion.usage_limit ? ` / ${promotion.usage_limit}` : ''} penggunaan</small></div></div><PromotionForm promotion={promotion} canEdit={canEdit} /></div>;
+  const [deleteState, deleteAction, deletePending] = useActionState(deletePromotion, { ok: false, message: '' });
+  return <div className="admin-panel promotion-card"><div className="promotion-card-heading"><div><span className={`promotion-type promotion-type-${promotion.promotion_type}`}>{typeLabels[promotion.promotion_type]}</span><h3>{promotion.name}</h3><p>{promotion.code}{promotion.voucher_code ? ` · Voucher ${promotion.voucher_code}` : ''}</p></div><div className="promotion-status"><span className={`status-pill status-${promotion.status}`}>{promotion.status}</span><small>{promotion.usage_count}{promotion.usage_limit ? ` / ${promotion.usage_limit}` : ''} penggunaan</small></div></div><PromotionForm promotion={promotion} canEdit={canEdit} /><form className="promotion-delete-form" action={deleteAction} onSubmit={(event) => { if (!window.confirm(`Hapus promo ${promotion.code}? Promo yang sudah dipakai tidak dapat dihapus.`)) event.preventDefault(); }}><input type="hidden" name="promotion_id" value={promotion.id} /><button className="text-button danger-button" type="submit" disabled={!canEdit || deletePending}>{deletePending ? 'Menghapus...' : 'Hapus promo'}</button>{deleteState.message && <small className={deleteState.ok ? 'action-success' : 'action-error'}>{deleteState.message}</small>}</form></div>;
 }
 
 function PromotionForm({ promotion, canEdit }: { promotion?: AdminPromotion; canEdit: boolean }) {

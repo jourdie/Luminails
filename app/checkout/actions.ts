@@ -20,7 +20,25 @@ const errorMessages: Record<string, string> = {
   INSUFFICIENT_REWARD_STOCK: 'Stok free product sedang tidak tersedia.',
   INSUFFICIENT_POINTS: 'Poin Anda belum cukup untuk reward tersebut.',
   INVALID_REWARD: 'Reward points tidak valid.',
+  REWARD_POINTS_MISMATCH: 'Nilai points reward berubah. Silakan refresh checkout.',
+  INVALID_REWARD_QUANTITY: 'Jumlah reward tidak valid.',
+  REWARD_MAX_QUANTITY_REACHED: 'Jumlah reward melebihi batas per order.',
+  REWARD_NOT_AVAILABLE: 'Reward sudah tidak tersedia.',
+  REWARD_OUT_OF_STOCK: 'Stok reward sedang habis.',
+  REWARD_NOT_STARTED: 'Periode reward belum dimulai.',
+  REWARD_EXPIRED: 'Periode reward sudah berakhir.',
+  REWARD_MINIMUM_ORDER_NOT_REACHED: 'Minimum order untuk reward belum tercapai.',
+  REWARD_TIER_NOT_ELIGIBLE: 'Tier customer belum memenuhi syarat reward.',
+  REWARD_NOT_ALLOWED_FOR_PACKAGE: 'Package ini tidak mengizinkan redemption reward.',
   INVENTORY_LOCATION_NOT_CONFIGURED: 'Lokasi inventory belum disiapkan admin.',
+  PACKAGE_SELECTION_REQUIRED: 'Pilih isi package terlebih dahulu.',
+  PACKAGE_SELECTION_CAPACITY: 'Jumlah pilihan SKU belum sesuai kapasitas package.',
+  SKU_NOT_ALLOWED: 'Ada SKU yang tidak termasuk whitelist package.',
+  INVALID_PACKAGE_SELECTION: 'Pilihan isi package tidak valid.',
+  INVALID_PACKAGE_BENEFIT_SELECTION: 'Pilihan free item package tidak valid.',
+  PACKAGE_BENEFIT_SELECTION_REQUIRED: 'Pilih semua free item benefit package terlebih dahulu.',
+  PACKAGE_BENEFIT_QUANTITY: 'Jumlah free item benefit belum sesuai.',
+  PACKAGE_BENEFIT_SKU_NOT_ALLOWED: 'Ada free item yang tidak tersedia untuk benefit package ini.',
 };
 
 function readableError(error: { message?: string } | null) {
@@ -51,9 +69,25 @@ export async function submitCheckoutOrder(_previous: CheckoutActionState, formDa
   const notes = String(formData.get('customer_notes') ?? '').trim() || null;
   const rewardSkuId = String(formData.get('reward_sku_id') ?? '').trim() || null;
   const rewardPoints = Number(formData.get('reward_points') ?? 0) || 0;
+  const rewardQuantity = Number(formData.get('reward_quantity') ?? 1);
+  if (!Number.isInteger(rewardQuantity) || rewardQuantity < 1 || rewardQuantity > 100) return { ok: false, message: errorMessages.INVALID_REWARD_QUANTITY };
   const idempotencyKey = String(formData.get('idempotency_key') ?? '').trim() || crypto.randomUUID();
+  let selectedSkus: Array<{ sku_id: string; quantity: number }> = [];
+  try {
+    const parsed = JSON.parse(String(formData.get('selected_skus') ?? '[]'));
+    if (Array.isArray(parsed)) selectedSkus = parsed.filter((row): row is { skuId: string; quantity: number } => typeof row?.skuId === 'string' && Number.isInteger(row?.quantity) && row.quantity > 0).map((row) => ({ sku_id: row.skuId, quantity: row.quantity }));
+  } catch {
+    return { ok: false, message: errorMessages.INVALID_PACKAGE_SELECTION };
+  }
+  let selectedBenefits: Array<{ benefit_id: string; sku_id: string; quantity: number }> = [];
+  try {
+    const parsed = JSON.parse(String(formData.get('selected_benefits') ?? '[]'));
+    if (Array.isArray(parsed)) selectedBenefits = parsed.filter((row): row is { benefitId: string; skuId: string; quantity: number } => typeof row?.benefitId === 'string' && typeof row?.skuId === 'string' && Number.isInteger(row?.quantity) && row.quantity > 0).map((row) => ({ benefit_id: row.benefitId, sku_id: row.skuId, quantity: row.quantity }));
+  } catch {
+    return { ok: false, message: errorMessages.INVALID_PACKAGE_BENEFIT_SELECTION };
+  }
 
-  const { data, error } = await supabase.rpc('create_checkout_order', {
+  const { data, error } = await (supabase as any).rpc('create_checkout_order_with_reward_quantity', {
     p_package_slug: packageSlug,
     p_quantity: quantity,
     p_address_id: addressId,
@@ -63,8 +97,11 @@ export async function submitCheckoutOrder(_previous: CheckoutActionState, formDa
     p_shipping_provider: shippingProvider,
     p_reward_sku_id: rewardSkuId,
     p_reward_points: rewardPoints,
+    p_reward_quantity: rewardQuantity,
     p_idempotency_key: idempotencyKey,
-  });
+    p_selected_skus: selectedSkus.length ? selectedSkus : null,
+    p_selected_benefits: selectedBenefits.length ? selectedBenefits : null,
+  } as never);
   if (error) return { ok: false, message: readableError(error) };
 
   const order = data as unknown as { order_id?: string; total_idr?: number; discount_idr?: number; promotion_code?: string | null } | null;

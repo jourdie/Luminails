@@ -1,5 +1,7 @@
 import { BrandExplorer } from '../../components/brand-explorer';
 import { getBrandPackagesFromDatabase } from '../../lib/packages-server';
+import { getPublicPromotions } from '../../lib/promotions-server';
+import { getAccountContext } from '../../lib/account-server';
 
 export const metadata = {
   title: 'B2B packages | Luminails',
@@ -7,5 +9,6 @@ export const metadata = {
 };
 
 export default async function PackagesPage() {
-  return <BrandExplorer packages={await getBrandPackagesFromDatabase()} />;
+  const [packages, promotions, account] = await Promise.all([getBrandPackagesFromDatabase(), getPublicPromotions(), getAccountContext()]);
+  return <BrandExplorer packages={packages} promotions={promotions} tierSummary={account.tierSummary} />;
 }

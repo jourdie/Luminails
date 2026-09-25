@@ -6,7 +6,7 @@ def main():
         browser = playwright.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1440, "height": 1100})
         page.goto("http://127.0.0.1:3000/admin", wait_until="domcontentloaded")
-        page.get_by_role("button", name="Promosi", exact=True).click()
+        page.get_by_role("button", name="Promosi").click()
         assert page.get_by_role("heading", name="Promo yang terukur.").is_visible()
         for label in [
             "New user promo",

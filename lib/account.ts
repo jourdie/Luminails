@@ -19,10 +19,13 @@ export type CustomerProfile = {
   pricing_tier_id?: string | null;
   lifetime_paid_amount_idr?: number;
   paid_order_count?: number;
+  customer_tier_id?: string | null;
+  auto_customer_tier_id?: string | null;
+  manual_tier_override_enabled?: boolean;
 };
 
 
-export type CustomerLoyalty = { customer_id: string; pricing_tier_id: string | null; tier_code: string; cashback_rate_bps: number; available_points: number; lifetime_earned_points: number; lifetime_redeemed_points: number; updated_at: string; };
+export type CustomerLoyalty = { customer_id: string; pricing_tier_id: string | null; customer_tier_id?: string | null; tier_code: string; cashback_rate_bps: number; available_points: number; lifetime_earned_points: number; lifetime_redeemed_points: number; updated_at: string; };
 export function identityFromUser(user: {
   email?: string | null;
   user_metadata?: Record<string, unknown> | null;

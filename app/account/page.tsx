@@ -7,5 +7,5 @@ export const dynamic = 'force-dynamic';
 export default async function AccountPage() {
   const account = await getAccountContext();
   if (!account.identity) redirect('/auth?next=/account');
-  return <AccountOverview identity={account.identity} profile={account.profile} loyalty={account.loyalty} needsProfile={account.needsProfile} />;
+  return <AccountOverview identity={account.identity} profile={account.profile} loyalty={account.loyalty} needsProfile={account.needsProfile} tierSummary={account.tierSummary} />;
 }

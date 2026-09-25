@@ -2,30 +2,38 @@
 
 import { useActionState, useState } from 'react';
 import type { BrandPackage } from '../lib/packages';
-import { formatIDR } from '../lib/packages';
 import { submitCheckoutOrder, type CheckoutActionState } from '../app/checkout/actions';
 
 type Address = { id: string; label: string; recipient_name: string; phone: string; address_line: string; city: string; province: string | null; postal_code: string | null; is_default: boolean };
-type Reward = { sku_id: string; name: string; points_cost: number };
+type Reward = { sku_id: string; name: string; points_cost: number; reward_stock: number; max_redemption_quantity: number; minimum_order_value_idr: number };
+type SelectedBenefit = { benefitId: string; skuId: string; quantity: number };
 const initialState: CheckoutActionState = { ok: false, message: '' };
 
-export function CheckoutForm({ item, quantity, notes, addresses, points, rewards }: { item: BrandPackage; quantity: number; notes: string; addresses: Address[]; points: number; rewards: Reward[] }) {
+export function CheckoutForm({ item, quantity, notes, selectedSkus, selectedBenefits, addresses, points, pendingPoints, rewards }: { item: BrandPackage; quantity: number; notes: string; selectedSkus: Array<{ skuId: string; quantity: number }>; selectedBenefits: SelectedBenefit[]; addresses: Address[]; points: number; pendingPoints: number; rewards: Reward[] }) {
   const [state, formAction, pending] = useActionState(submitCheckoutOrder, initialState);
   const [shippingMethod, setShippingMethod] = useState('paxel_factory');
   const [rewardSku, setRewardSku] = useState('');
+  const [rewardQuantity, setRewardQuantity] = useState(1);
   const selectedReward = rewards.find((reward) => reward.sku_id === rewardSku);
   const idempotencyKey = useState(() => crypto.randomUUID())[0];
-  return <form className="checkout-form" action={formAction}>
-    <input type="hidden" name="package_slug" value={item.slug} />
-    <input type="hidden" name="quantity" value={quantity} />
-    <input type="hidden" name="idempotency_key" value={idempotencyKey} />
-    <div className="checkout-form-section"><span className="checkout-kicker">01 / Delivery profile</span><h3>Pilih alamat cabang</h3>{addresses.length ? <select name="address_id" defaultValue={addresses.find((address) => address.is_default)?.id ?? addresses[0]?.id} required>{addresses.map((address) => <option key={address.id} value={address.id}>{address.label} — {address.recipient_name}, {address.city}</option>)}</select> : <div className="checkout-empty"><p>Belum ada alamat tersimpan. Tambahkan alamat studio dulu agar order bisa diproses.</p><a href="/account/addresses">Kelola alamat</a></div>}</div>
-    <div className="checkout-form-section"><span className="checkout-kicker">02 / Delivery route</span><h3>Metode pengiriman</h3><select name="shipping_method" value={shippingMethod} onChange={(event) => setShippingMethod(event.target.value)}><option value="paxel_factory">Paxel partner — next day, gratis ongkir</option><option value="third_party">Kurir pihak ketiga — provider menyusul</option><option value="pickup">Pickup / koordinasi manual</option></select><input name="shipping_provider" defaultValue={shippingMethod === 'paxel_factory' ? 'paxel' : ''} placeholder="Kode provider jika sudah dipilih" /></div>
-    <div className="checkout-form-section"><span className="checkout-kicker">03 / Promotion access</span><h3>Promo eligible untuk Anda</h3><input name="promotion_code" placeholder="Masukkan kode promo / voucher" /><p className="checkout-help">Sistem akan memvalidasi tier, jumlah order, minimum order, periode, limit pemakaian, dan target package di server.</p></div>
-    <div className="checkout-form-section"><span className="checkout-kicker">04 / Luminails Points</span><h3>Free product dengan poin</h3><p className="checkout-help">Poin bukan uang, tidak bisa diuangkan, dan tidak memotong total order. Pilih reward jika saldo poin mencukupi.</p>{rewards.length && points > 0 ? <select name="reward_sku_id" value={rewardSku} onChange={(event) => setRewardSku(event.target.value)}><option value="">Tidak menggunakan poin</option>{rewards.map((reward) => <option key={reward.sku_id} value={reward.sku_id}>{reward.name} — {reward.points_cost.toLocaleString('id-ID')} poin</option>)}</select> : <p className="checkout-points-balance">Saldo saat ini: <strong>{points.toLocaleString('id-ID')} poin</strong>. Reward akan muncul setelah admin mengatur katalog reward.</p>}<input type="hidden" name="reward_points" value={selectedReward?.points_cost ?? 0} /></div>
-    <div className="checkout-form-section"><span className="checkout-kicker">05 / Notes</span><h3>Catatan untuk tim</h3><textarea name="customer_notes" defaultValue={notes} placeholder="Catatan packing, preferensi shade, atau instruksi cabang." /></div>
-    {state.message && <p className="checkout-message" role="alert">{state.message}</p>}
-    <button className="brand-button brand-button-dark checkout-submit" disabled={pending || !addresses.length}>{pending ? 'Membuat order...' : 'Buat order untuk direview'} <span>→</span></button>
-    <p className="checkout-help">Payment gateway belum diaktifkan. Order akan masuk ke back office dengan status menunggu review; pembayaran dapat ditautkan kemudian ke Midtrans atau Xendit.</p>
+  const maxRewardQuantity = selectedReward ? Math.min(selectedReward.max_redemption_quantity, selectedReward.reward_stock > 0 ? selectedReward.reward_stock : selectedReward.max_redemption_quantity) : 1;
+  const redeemedPoints = selectedReward ? selectedReward.points_cost * rewardQuantity : 0;
+  const projectedPoints = points - redeemedPoints + pendingPoints;
+  const canRedeem = item.allowRewardRedemption !== false;
+
+  return <form className={'checkout-form'} action={formAction}>
+    <input type={'hidden'} name={'package_slug'} value={item.slug} />
+    <input type={'hidden'} name={'quantity'} value={quantity} />
+    <input type={'hidden'} name={'selected_skus'} value={JSON.stringify(selectedSkus)} />
+    <input type={'hidden'} name={'selected_benefits'} value={JSON.stringify(selectedBenefits)} />
+    <input type={'hidden'} name={'idempotency_key'} value={idempotencyKey} />
+    <div className={'checkout-form-section'}><span className={'checkout-kicker'}>01 / Delivery profile</span><h3>Pilih alamat cabang</h3>{addresses.length ? <select name={'address_id'} defaultValue={addresses.find((address) => address.is_default)?.id ?? addresses[0]?.id} required>{addresses.map((address) => <option key={address.id} value={address.id}>{address.label} - {address.recipient_name}, {address.city}</option>)}</select> : <div className={'checkout-empty'}><p>Belum ada alamat tersimpan. Tambahkan alamat studio dulu agar order bisa diproses.</p><a href={'/account/addresses'}>Kelola alamat</a></div>}</div>
+    <div className={'checkout-form-section'}><span className={'checkout-kicker'}>02 / Delivery route</span><h3>Metode pengiriman</h3><select name={'shipping_method'} value={shippingMethod} onChange={(event) => setShippingMethod(event.target.value)}><option value={'paxel_factory'}>Paxel partner - next day, gratis ongkir</option><option value={'third_party'}>Kurir pihak ketiga - provider menyusul</option><option value={'pickup'}>Pickup / koordinasi manual</option></select><input name={'shipping_provider'} defaultValue={'paxel'} placeholder={'Kode provider jika sudah dipilih'} /></div>
+    <div className={'checkout-form-section'}><span className={'checkout-kicker'}>03 / Promotion access</span><h3>Promo eligible untuk Anda</h3><input name={'promotion_code'} placeholder={'Masukkan kode promo / voucher'} /><p className={'checkout-help'}>Sistem akan memvalidasi tier, jumlah order, minimum order, periode, limit pemakaian, dan target package di server.</p></div>
+    <div className={'checkout-form-section'}><span className={'checkout-kicker'}>04 / Luminails Points</span><h3>Free product dengan poin</h3><p className={'checkout-help'}>Poin bukan uang, tidak bisa diuangkan, dan tidak memotong total order. Poin dari order ini belum dapat dipakai di order yang sama.</p>{!canRedeem ? <p className={'checkout-points-balance'}>Package ini tidak dapat digabung dengan redemption reward.</p> : rewards.length && points > 0 ? <><select name={'reward_sku_id'} value={rewardSku} onChange={(event) => { setRewardSku(event.target.value); setRewardQuantity(1); }}><option value={''}>Tidak menggunakan poin</option>{rewards.map((reward) => <option key={reward.sku_id} value={reward.sku_id} disabled={points < reward.points_cost}>{reward.name} - {reward.points_cost.toLocaleString('id-ID')} poin{reward.reward_stock > 0 ? ' - stok ' + reward.reward_stock : ''}</option>)}</select>{selectedReward && <label>Jumlah reward<input name={'reward_quantity_display'} type={'number'} min={1} max={maxRewardQuantity} value={rewardQuantity} onChange={(event) => setRewardQuantity(Math.max(1, Math.min(maxRewardQuantity, Number(event.target.value) || 1)))} /><small className={'field-help'}>Maksimal {maxRewardQuantity} item per order. Total: {redeemedPoints.toLocaleString('id-ID')} pts.</small></label>}</> : <p className={'checkout-points-balance'}>Saldo saat ini: <strong>{points.toLocaleString('id-ID')} poin</strong>. Reward akan muncul setelah admin mengatur katalog reward.</p>}<input type={'hidden'} name={'reward_points'} value={selectedReward?.points_cost ?? 0} /><input type={'hidden'} name={'reward_quantity'} value={selectedReward ? rewardQuantity : 1} /><div className={'checkout-points-preview'}><span>Current points <strong>{points.toLocaleString('id-ID')} pts</strong></span><span>Dipakai sekarang <strong>-{redeemedPoints.toLocaleString('id-ID')} pts</strong></span><span>Pending dari order <strong>+{pendingPoints.toLocaleString('id-ID')} pts</strong></span><span>Projected after completion <strong>{projectedPoints.toLocaleString('id-ID')} pts</strong></span></div></div>
+    <div className={'checkout-form-section'}><span className={'checkout-kicker'}>05 / Notes</span><h3>Catatan untuk tim</h3><textarea name={'customer_notes'} defaultValue={notes} placeholder={'Catatan packing, preferensi shade, atau instruksi cabang.'} /></div>
+    {state.message && <p className={'checkout-message'} role={'alert'}>{state.message}</p>}
+    <button className={'brand-button brand-button-dark checkout-submit'} disabled={pending || !addresses.length}>{pending ? 'Membuat order...' : 'Buat order untuk direview'} <span>-&gt;</span></button>
+    <p className={'checkout-help'}>Payment gateway belum diaktifkan. Order akan masuk ke back office dengan status menunggu review; pembayaran dapat ditautkan kemudian ke Midtrans atau Xendit.</p>
   </form>;
 }

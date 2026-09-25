@@ -1,4 +1,4 @@
-﻿import { redirect } from 'next/navigation';
+import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { SiteNavigation } from '../../../components/site-navigation';
 import { CustomerOrderHistory } from '../../../components/customer-order-history';
@@ -11,5 +11,5 @@ export default async function CustomerOrdersPage({ searchParams }: { searchParam
   if (!account.identity) redirect('/auth?next=/account/orders');
   const params = await searchParams;
   const orders = await getCustomerOrders();
-  return <><SiteNavigation identity={account.identity} profile={account.profile} needsProfile={account.needsProfile} /><main className="account-page"><div className="account-shell"><div className="account-heading"><div><p className="eyebrow">Customer workspace</p><h1>Order<br /><em>history.</em></h1><p>Semua order package, status pembayaran, promo, dan tracking Anda.</p></div><Link className="button button-outline" href="/account">Account overview</Link></div><CustomerOrderHistory orders={orders} createdOrderId={params.created} /></div></main></>;
+  return <><SiteNavigation identity={account.identity} profile={account.profile} needsProfile={account.needsProfile} tierSummary={account.tierSummary} /><main className="account-page"><div className="account-shell"><div className="account-heading"><div><p className="eyebrow">Customer workspace</p><h1>Order<br /><em>history.</em></h1><p>Semua order package, status pembayaran, promo, dan tracking Anda.</p></div><Link className="button button-outline" href="/account">Account overview</Link></div><CustomerOrderHistory orders={orders} createdOrderId={params.created} /></div></main></>;
 }
