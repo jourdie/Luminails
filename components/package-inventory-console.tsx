@@ -34,6 +34,7 @@ export function AdminPackageConsole({ brands, packages, packageItems, packageAll
   const [packageSort, setPackageSort] = useState<'newest' | 'name' | 'price'>('newest');
   const [packagePage, setPackagePage] = useState(0);
   const visiblePackages = useMemo(() => packages.filter((item) => (item.title + ' ' + item.slug + ' ' + item.brand_name).toLowerCase().includes(packageQuery.trim().toLowerCase())).sort((a, b) => packageSort === 'name' ? a.title.localeCompare(b.title) : packageSort === 'price' ? a.price_idr - b.price_idr : b.slug.localeCompare(a.slug)), [packages, packageQuery, packageSort]);
+  const pagedPackages = visiblePackages.slice(packagePage * 10, packagePage * 10 + 10);
 
   return (
     <div className="admin-crud-stack">
@@ -64,7 +65,7 @@ export function AdminPackageConsole({ brands, packages, packageItems, packageAll
       </section>
       <section className="admin-panel">
         <div className="panel-heading"><div><p className="eyebrow">Live catalog records</p><h3>Kelola package dan harga tier</h3></div><span className="notification-count">Harga IDR</span></div>
-        {packages.length === 0 ? <p className="admin-empty-copy">Belum ada package di database.</p> : packages.map((item) => <PackageRow key={item.id} item={item} brands={brands} packageItems={packageItems.filter((packageItem) => packageItem.package_id === item.id)} packageAllowedSkus={packageAllowedSkus.filter((allowed) => allowed.package_id === item.id)} packageImages={packageImages.filter((image) => image.package_id === item.id)} packagePrices={packagePrices.filter((price) => price.package_id === item.id)} packageTypes={packageTypes} packageEligibility={packageEligibility.filter((rule) => rule.package_id === item.id)} packageBenefits={packageBenefits.filter((benefit) => benefit.package_id === item.id)} customerTiers={customerTiers} pricingTiers={activeTiers} skus={skus} canEdit={canEdit} />)}
+        {visiblePackages.length === 0 ? <p className="admin-empty-copy">Belum ada package yang cocok dengan pencarian.</p> : pagedPackages.map((item) => <PackageRow key={item.id} item={item} brands={brands} packageItems={packageItems.filter((packageItem) => packageItem.package_id === item.id)} packageAllowedSkus={packageAllowedSkus.filter((allowed) => allowed.package_id === item.id)} packageImages={packageImages.filter((image) => image.package_id === item.id)} packagePrices={packagePrices.filter((price) => price.package_id === item.id)} packageTypes={packageTypes} packageEligibility={packageEligibility.filter((rule) => rule.package_id === item.id)} packageBenefits={packageBenefits.filter((benefit) => benefit.package_id === item.id)} customerTiers={customerTiers} pricingTiers={activeTiers} skus={skus} canEdit={canEdit} />)}
       </section>
       <PackageTypesEditor packageTypes={packageTypes} canEdit={canEdit} />
     </div>
@@ -85,9 +86,18 @@ function PackageTypeRow({ type, canEdit }: { type: AdminPackageType; canEdit: bo
 function PackageRow({ item, brands, packageItems, packageAllowedSkus, packageImages, packagePrices, packageTypes, packageEligibility, packageBenefits, customerTiers, pricingTiers, skus, canEdit }: { item: AdminPackage; brands: AdminBrand[]; packageItems: AdminPackageItem[]; packageAllowedSkus: AdminPackageAllowedSku[]; packageImages: AdminPackageImage[]; packagePrices: AdminPackagePrice[]; packageTypes: AdminPackageType[]; packageEligibility: AdminPackageEligibility[]; packageBenefits: AdminPackageBenefit[]; customerTiers: AdminCustomerTier[]; pricingTiers: AdminPricingTier[]; skus: AdminSku[]; canEdit: boolean }) {
   const [state, action, pending] = useActionState(updatePackage, initialState);
   const [deleteState, deleteAction, deletePending] = useActionState(deletePackage, initialState);
+  const [expanded, setExpanded] = useState(false);
   const currentPrice = (tier: AdminPricingTier) => packagePrices.find((price) => price.pricing_tier_id === tier.id)?.unit_price_idr ?? (tier.code === 'STANDARD' ? item.price_idr : undefined);
   return (
     <div className="admin-crud-record">
+      <div className="admin-data-table package-summary-table" role="row">
+        <div><strong>{item.title}</strong><small>{item.slug}</small></div>
+        <div><span>Brand</span><strong>{item.brand_name}</strong></div>
+        <div><span>Isi</span><strong>{item.selection_mode === 'free_pick' ? 'Free pick' : 'Fixed'}</strong></div>
+        <div><span>Status</span><strong>{item.status}</strong></div>
+        <div><button type="button" className="button button-outline" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Tutup detail' : 'Buka detail'}</button></div>
+      </div>
+      {expanded && <div className="package-detail-panel">
       <form className="admin-crud-form admin-crud-row-form" action={action}>
         <input type="hidden" name="package_id" value={item.id} />
         <label>Brand<select name="brand_id" defaultValue={item.brand_id} disabled={!canEdit}>{brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}</select></label>
@@ -110,6 +120,7 @@ function PackageRow({ item, brands, packageItems, packageAllowedSkus, packageIma
       <PackageImageEditor packageId={item.id} images={packageImages} canEdit={canEdit} />
       {item.selection_mode === 'free_pick' ? <PackageAllowedSkuEditor packageId={item.id} allowedSkus={packageAllowedSkus} skus={skus} canEdit={canEdit} /> : <PackageItemsEditor packageId={item.id} packageItems={packageItems} skus={skus} canEdit={canEdit} />}
       <PackageRulesEditor packageId={item.id} rules={packageEligibility} benefits={packageBenefits} customerTiers={customerTiers} brands={brands} skus={skus} canEdit={canEdit} />
+      </div>}
     </div>
   );
 }
@@ -135,7 +146,10 @@ function PackageItemsEditor({ packageId, packageItems, skus, canEdit }: { packag
   return (
     <div className="package-items-editor">
       <div className="package-items-heading"><span>Isi package</span><small>{packageItems.length} item</small></div>
-      {packageItems.map((item) => <PackageItemRow key={item.id} item={item} canEdit={canEdit} />)}
+      {packageItems.length > 0 && <div className="admin-data-table package-content-table" role="table" aria-label="Isi package">
+        <div className="admin-data-head package-content-head" role="row"><span>SKU / item</span><span>Qty</span><span>Catatan</span><span>Status</span><span>Aksi</span></div>
+        {packageItems.map((item) => <PackageItemRow key={item.id} item={item} canEdit={canEdit} />)}
+      </div>}
       {skus.filter((sku) => sku.is_active).length === 0 ? <small className="admin-empty-copy">Belum ada SKU aktif untuk dipilih. Buat SKU dari modul SKU list terlebih dahulu.</small> : <form className="admin-crud-inline-form package-item-form" action={action}>
         <input type="hidden" name="package_id" value={packageId} />
         <label>SKU<select name="sku_id" disabled={!canEdit}>{skus.filter((sku) => sku.is_active).map((sku) => <option key={sku.id} value={sku.id}>{sku.sku} · {sku.name}</option>)}</select></label>
@@ -150,7 +164,7 @@ function PackageItemsEditor({ packageId, packageItems, skus, canEdit }: { packag
 function PackageItemRow({ item, canEdit }: { item: AdminPackageItem; canEdit: boolean }) {
   const [state, action, pending] = useActionState(updatePackageItem, initialState);
   const [deleteState, deleteAction, deletePending] = useActionState(deletePackageItem, initialState);
-  return <div className="package-item-row package-item-editor"><form action={action}><input type="hidden" name="package_item_id" value={item.id} /><div><strong>{item.item_name_snapshot}</strong><small>SKU snapshot · quantity per 1 package</small></div><label>Qty<input name="quantity" type="number" min="1" step="1" defaultValue={item.quantity} disabled={!canEdit} /></label><label>Catatan<input name="item_note" defaultValue={item.item_note ?? ''} placeholder="Opsional" disabled={!canEdit} /></label><button className="button button-outline" type="submit" disabled={!canEdit || pending}>{pending ? '...' : 'Simpan item'}</button><span className={state.message ? (state.ok ? 'action-success' : 'action-error') : 'admin-form-note'}>{state.message || 'Customer akan melihat quantity ini.'}</span></form><form action={deleteAction} onSubmit={(event) => { if (!window.confirm('Hapus item SKU ini dari package?')) event.preventDefault(); }}><input type="hidden" name="package_item_id" value={item.id} /><button className="text-button danger-button" type="submit" disabled={!canEdit || deletePending}>{deletePending ? '...' : 'Hapus'}</button><span className={deleteState.message ? (deleteState.ok ? 'action-success' : 'action-error') : ''}>{deleteState.message}</span></form></div>;
+  return <div className="admin-data-row package-content-row" role="row"><form className="package-content-form" action={action}><input type="hidden" name="package_item_id" value={item.id} /><div><strong>{item.item_name_snapshot}</strong><small>SKU snapshot · quantity per 1 package</small></div><label>Qty<input name="quantity" type="number" min="1" step="1" defaultValue={item.quantity} disabled={!canEdit} /></label><label>Catatan<input name="item_note" defaultValue={item.item_note ?? ''} placeholder="Opsional" disabled={!canEdit} /></label><span className={state.message ? (state.ok ? 'action-success' : 'action-error') : 'admin-form-note'}>{state.message || 'Customer akan melihat quantity ini.'}</span><button className="button button-outline" type="submit" disabled={!canEdit || pending}>{pending ? '...' : 'Simpan'}</button></form><form className="package-delete-form" action={deleteAction} onSubmit={(event) => { if (!window.confirm('Hapus item SKU ini dari package?')) event.preventDefault(); }}><input type="hidden" name="package_item_id" value={item.id} /><button className="text-button danger-button" type="submit" disabled={!canEdit || deletePending}>{deletePending ? '...' : 'Hapus'}</button>{deleteState.message && <small className={deleteState.ok ? 'action-success' : 'action-error'}>{deleteState.message}</small>}</form></div>;
 }
 
 function PackageRulesEditor({ packageId, rules, benefits, customerTiers, brands, skus, canEdit }: { packageId: string; rules: AdminPackageEligibility[]; benefits: AdminPackageBenefit[]; customerTiers: AdminCustomerTier[]; brands: AdminBrand[]; skus: AdminSku[]; canEdit: boolean }) {
@@ -174,7 +188,7 @@ function PackageRulesEditor({ packageId, rules, benefits, customerTiers, brands,
       <label>Minimum order (IDR)<IdrInput name="minimum_order_value_idr" placeholder="0" disabled={!canEdit} /></label>
       <div className="admin-crud-record-foot"><span className={ruleState.message ? (ruleState.ok ? 'action-success' : 'action-error') : 'admin-form-note'}>{ruleState.message || 'Satu rule cukup memiliki salah satu target.'}</span><button className="button button-outline" type="submit" disabled={!canEdit || rulePending}>{rulePending ? '...' : 'Tambah eligibility'}</button></div>
     </form>
-    {rules.length > 0 && <div className="package-rule-list">{rules.map((rule) => <PackageEligibilityRow key={rule.id} rule={rule} canEdit={canEdit} tierName={tierName(rule.customer_tier_id)} brandName={brandName(rule.brand_id)} skuName={skuName(rule.sku_id)} />)}</div>}
+    {rules.length > 0 && <div className="admin-data-table package-rule-table" role="table" aria-label="Eligibility package"><div className="admin-data-head package-rule-head" role="row"><span>Target</span><span>Minimum</span><span>Aksi</span></div>{rules.map((rule) => <PackageEligibilityRow key={rule.id} rule={rule} canEdit={canEdit} tierName={tierName(rule.customer_tier_id)} brandName={brandName(rule.brand_id)} skuName={skuName(rule.sku_id)} />)}</div>}
     <form className="admin-crud-inline-form package-rule-form" action={benefitAction}>
       <input type="hidden" name="package_id" value={packageId} />
       <label>Benefit untuk tier<select name="customer_tier_id" disabled={!canEdit}><option value="">Semua tier</option>{activeTiers.map((tier) => <option key={tier.id} value={tier.id}>{tier.name}</option>)}</select></label>
@@ -185,18 +199,18 @@ function PackageRulesEditor({ packageId, rules, benefits, customerTiers, brands,
       <label className="admin-crud-wide">Catatan<input name="notes" placeholder="Contoh: pilih 2 tools dari daftar yang diizinkan" disabled={!canEdit} /></label>
       <div className="admin-crud-record-foot"><span className={benefitState.message ? (benefitState.ok ? 'action-success' : 'action-error') : 'admin-form-note'}>{benefitState.message || 'Benefit dapat berbeda per tier customer.'}</span><button className="button button-outline" type="submit" disabled={!canEdit || benefitPending}>{benefitPending ? '...' : 'Tambah benefit'}</button></div>
     </form>
-    {benefits.length > 0 && <div className="package-rule-list">{benefits.map((benefit) => <PackageBenefitRow key={benefit.id} benefit={benefit} canEdit={canEdit} tierName={tierName(benefit.customer_tier_id)} skuName={skuName(benefit.reward_sku_id)} />)}</div>}
+    {benefits.length > 0 && <div className="admin-data-table package-rule-table" role="table" aria-label="Benefit package"><div className="admin-data-head package-rule-head" role="row"><span>Tier / benefit</span><span>Variasi</span><span>Aksi</span></div>{benefits.map((benefit) => <PackageBenefitRow key={benefit.id} benefit={benefit} canEdit={canEdit} tierName={tierName(benefit.customer_tier_id)} skuName={skuName(benefit.reward_sku_id)} />)}</div>}
   </div>;
 }
 
 function PackageEligibilityRow({ rule, canEdit, tierName, brandName, skuName }: { rule: AdminPackageEligibility; canEdit: boolean; tierName: string; brandName: string; skuName: string }) {
   const [state, action, pending] = useActionState(deletePackageEligibility, initialState);
-  return <div className="package-rule-row"><div><strong>{tierName} · {brandName} · {skuName}</strong><small>Minimal {rule.minimum_quantity} package · order {formatAdminIdr(rule.minimum_order_value_idr)}</small></div><form action={action} onSubmit={(event) => { if (!window.confirm('Hapus rule eligibility ini?')) event.preventDefault(); }}><input type="hidden" name="eligibility_id" value={rule.id} /><button className="text-button danger-button" type="submit" disabled={!canEdit || pending}>{pending ? '...' : 'Hapus rule'}</button>{state.message && <small>{state.message}</small>}</form></div>;
+  return <div className="admin-data-row package-rule-row" role="row"><div><strong>{tierName} · {brandName} · {skuName}</strong></div><div><small>Minimal {rule.minimum_quantity} package · order {formatAdminIdr(rule.minimum_order_value_idr)}</small></div><form action={action} onSubmit={(event) => { if (!window.confirm('Hapus rule eligibility ini?')) event.preventDefault(); }}><input type="hidden" name="eligibility_id" value={rule.id} /><button className="text-button danger-button" type="submit" disabled={!canEdit || pending}>{pending ? '...' : 'Hapus rule'}</button>{state.message && <small>{state.message}</small>}</form></div>;
 }
 
 function PackageBenefitRow({ benefit, canEdit, tierName, skuName }: { benefit: AdminPackageBenefit; canEdit: boolean; tierName: string; skuName: string }) {
   const [state, action, pending] = useActionState(deletePackageBenefit, initialState);
-  return <div className="package-rule-row"><div><strong>{tierName} · {benefit.quantity}x {skuName}</strong><small>{benefit.variant_rule === 'customer_selected' ? 'Customer pilih variasi' : 'Admin tentukan item'}{benefit.notes ? ` · ${benefit.notes}` : ''}</small></div><form action={action} onSubmit={(event) => { if (!window.confirm('Hapus benefit package ini?')) event.preventDefault(); }}><input type="hidden" name="benefit_id" value={benefit.id} /><button className="text-button danger-button" type="submit" disabled={!canEdit || pending}>{pending ? '...' : 'Hapus benefit'}</button>{state.message && <small>{state.message}</small>}</form></div>;
+  return <div className="admin-data-row package-rule-row" role="row"><div><strong>{tierName} · {benefit.quantity}x {skuName}</strong></div><div><small>{benefit.variant_rule === 'customer_selected' ? 'Customer pilih variasi' : 'Admin tentukan item'}{benefit.notes ? ` · ${benefit.notes}` : ''}</small></div><form action={action} onSubmit={(event) => { if (!window.confirm('Hapus benefit package ini?')) event.preventDefault(); }}><input type="hidden" name="benefit_id" value={benefit.id} /><button className="text-button danger-button" type="submit" disabled={!canEdit || pending}>{pending ? '...' : 'Hapus benefit'}</button>{state.message && <small>{state.message}</small>}</form></div>;
 }
 
 function formatAdminIdr(value: number | null | undefined) {

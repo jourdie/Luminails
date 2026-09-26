@@ -501,6 +501,26 @@ h1 em, h2 em { color: var(--lilac-deep); font-style: italic; }
 .package-item-row strong { font-size: 10px; }
 .package-item-row small, .package-item-row > span { color: var(--muted); font-size: 9px; }
 .package-item-form { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.package-summary-table { display: grid; grid-template-columns: minmax(0, 1.5fr) .9fr .8fr .8fr auto; gap: 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.package-summary-table > div { display: grid; gap: 4px; min-width: 0; }
+.package-summary-table > div > span, .package-summary-table small { color: var(--muted); font-size: 9px; }
+.package-summary-table strong { font-size: 11px; }
+.package-detail-panel { padding-top: 14px; }
+.package-content-table { margin-top: 8px; }
+.package-content-head, .package-content-form { grid-template-columns: minmax(0, 1.5fr) .55fr minmax(150px, 1.4fr) minmax(120px, 1.2fr) auto; }
+.package-content-row { position: relative; display: block; padding: 10px 76px 10px 0; }
+.package-content-form { display: grid; gap: 14px; align-items: center; width: 100%; }
+.package-content-form > div, .package-content-form > label { display: grid; gap: 4px; min-width: 0; }
+.package-content-form strong { font-size: 10px; }
+.package-content-form small, .package-content-form > span { color: var(--muted); font-size: 9px; }
+.package-content-form input { width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid var(--line); background: transparent; color: var(--ink); font: inherit; font-size: 10px; }
+.package-delete-form { position: absolute; right: 0; bottom: 10px; display: grid; gap: 3px; justify-items: end; }
+.package-delete-form small { max-width: 150px; color: var(--muted); font-size: 8px; text-align: right; }
+.package-rule-table { margin-top: 10px; }
+.package-rule-head, .package-rule-row { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.2fr) auto; }
+.package-rule-row > div, .package-rule-row > form { display: grid; gap: 4px; min-width: 0; }
+.package-rule-row strong { font-size: 10px; }
+.package-rule-row small { color: var(--muted); font-size: 9px; }
 
 .account-page { min-height: 100dvh; background: var(--paper-deep); color: var(--ink); }
 .account-shell { width: min(1120px, calc(100% - 44px)); margin: 0 auto; padding: 75px 0 100px; }

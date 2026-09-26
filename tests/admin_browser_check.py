@@ -18,7 +18,7 @@ def main():
         page.wait_for_selector("h1", timeout=20000)
         page.wait_for_timeout(1000)
         assert page.get_by_role("heading", name="Admin workspace").is_visible()
-        assert page.get_by_text("Mode preview aktif").is_visible()
+        assert page.get_by_text("Preview mode").is_visible()
         page.set_default_timeout(3000)
         print("nav", page.locator(".admin-nav-item").all_inner_texts(), flush=True)
 
