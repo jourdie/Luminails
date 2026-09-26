@@ -40,6 +40,9 @@ def main():
         page.get_by_role("button", name="Packages").click()
         page.get_by_role("heading", name="Packages").wait_for(state="visible")
         assert page.get_by_role("heading", name="Packages").is_visible()
+        if page.get_by_role("button", name="Buka detail").count():
+            page.get_by_role("button", name="Buka detail").first.click()
+            assert page.locator(".package-summary-table").first.is_visible()
         assert page.get_by_text("Brand Register → SKU list → Package").is_visible()
 
         print("orders", flush=True)

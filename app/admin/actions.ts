@@ -722,13 +722,13 @@ export async function deletePackage(previous: AdminActionState, formData: FormDa
   if (!id) return { ok: false, message: 'Package ID tidak ditemukan.' };
   const access = await requireAdmin('packages');
   if (!access.ok) return access;
-  const { data: packageRow } = await access.supabase.from('commerce_packages').select('title, status').eq('id', id).maybeSingle();
+  const { data: packageRow, error: packageLookupError } = await access.supabase.from('commerce_packages').select('title, status').eq('id', id).maybeSingle();
+  if (packageLookupError) return { ok: false, message: `Package tidak bisa diperiksa: ${packageLookupError.message}` };
   if (!packageRow) return { ok: false, message: 'Package tidak ditemukan atau sudah dihapus.' };
-  if (packageRow.status === 'published') return { ok: false, message: 'Package Published tidak dihapus langsung. Ubah ke Archived terlebih dahulu.' };
   const { count: orderCount } = await access.supabase.from('commerce_order_items').select('id', { count: 'exact', head: true }).eq('package_id', id);
   if ((orderCount ?? 0) > 0) return { ok: false, message: 'Package tidak dapat dihapus karena sudah tercatat pada transaksi. Archive package saja.' };
   const { error } = await access.supabase.from('commerce_packages').delete().eq('id', id);
-  if (error) return { ok: false, message: 'Package belum dihapus. Pastikan dependency package tidak memblokir penghapusan.' };
+  if (error) return { ok: false, message: `Package belum dihapus: ${error.message}` };
   revalidatePath('/admin'); revalidatePath('/packages'); revalidatePath('/brands');
   return { ok: true, message: 'Package berhasil dihapus.' };
 }

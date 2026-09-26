@@ -508,7 +508,7 @@ h1 em, h2 em { color: var(--lilac-deep); font-style: italic; }
 .package-detail-panel { padding-top: 14px; }
 .package-content-table { margin-top: 8px; }
 .package-content-head, .package-content-form { grid-template-columns: minmax(0, 1.5fr) .55fr minmax(150px, 1.4fr) minmax(120px, 1.2fr) auto; }
-.package-content-row { position: relative; display: block; padding: 10px 76px 10px 0; }
+.admin-package-content-row { position: relative; display: block; padding: 10px 76px 10px 0; }
 .package-content-form { display: grid; gap: 14px; align-items: center; width: 100%; }
 .package-content-form > div, .package-content-form > label { display: grid; gap: 4px; min-width: 0; }
 .package-content-form strong { font-size: 10px; }
