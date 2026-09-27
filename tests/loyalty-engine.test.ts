@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { selectActivePackagePrice } from '../lib/packages.ts';
 import { calculateBasePoints, calculateEarnedPoints, calculateRefundReversalPoints, consumePointLots, eligibleSpend, hasPackageConflict, isManualTierOverrideActive, pointsToNextTier, rewardCostRatio, selectCustomerTier } from '../lib/loyalty-engine.ts';
 import { isPackageEligible, validatePackageBenefitSelections } from '../lib/package-eligibility.ts';
 
@@ -27,6 +28,13 @@ assert.equal(isManualTierOverrideActive(true, '2026-10-01T00:00:00.000Z', Date.p
 assert.equal(isManualTierOverrideActive(true, '2026-09-01T00:00:00.000Z', Date.parse('2026-09-25T00:00:00.000Z')), false);
 assert.equal(hasPackageConflict([{ id: 'a', stackable: false }, { id: 'b', stackable: true }]), true);
 assert.equal(hasPackageConflict([{ id: 'a', stackable: true }, { id: 'b', stackable: true }]), false);
+assert.equal(selectActivePackagePrice([
+  { packageId: 'package-1', unitPriceIdr: 1_200_000, effectiveFrom: '2026-09-01T00:00:00.000Z', effectiveUntil: null },
+  { packageId: 'package-1', unitPriceIdr: 1_000_000, effectiveFrom: '2026-10-01T00:00:00.000Z', effectiveUntil: null },
+], 'package-1', new Date('2026-09-27T00:00:00.000Z'))?.unitPriceIdr, 1_200_000);
+assert.equal(selectActivePackagePrice([
+  { packageId: 'package-1', unitPriceIdr: 900_000, effectiveFrom: '2026-08-01T00:00:00.000Z', effectiveUntil: '2026-09-15T00:00:00.000Z' },
+], 'package-1', new Date('2026-09-27T00:00:00.000Z')), null);
 
 const tiers = [
   { id: 'basic', code: 'BASIC', name: 'Basic', minimumRollingSpendIdr: 0, maximumRollingSpendIdr: 1_999_999, rollingPeriodMonths: 6, pointMultiplier: 1, priority: 10, isActive: true },

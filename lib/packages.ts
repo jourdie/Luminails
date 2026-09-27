@@ -21,6 +21,14 @@ export type PackageSkuOption = {
   color?: string;
 };
 
+export type PackageTierPrice = {
+  packageId: string;
+  unitPriceIdr: number;
+  effectiveFrom: string;
+  effectiveUntil?: string | null;
+  isActive?: boolean;
+};
+
 export type PackageBenefit = { id: string; name: string; quantity: number; variantRule: 'admin_selected' | 'customer_selected'; notes?: string | null; allowedSkus?: PackageSkuOption[] };
 
 export type BrandPackage = {
@@ -61,4 +69,19 @@ export function formatIDR(value: number) {
 
 export function formatQuantity(value: number) {
   return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(value);
+}
+
+export function selectActivePackagePrice(prices: PackageTierPrice[], packageId: string, asOf = new Date()) {
+  const timestamp = asOf.getTime();
+  return prices
+    .filter((price) => {
+      const startsAt = Date.parse(price.effectiveFrom);
+      const endsAt = price.effectiveUntil ? Date.parse(price.effectiveUntil) : Number.POSITIVE_INFINITY;
+      return price.packageId === packageId
+        && price.isActive !== false
+        && Number.isFinite(startsAt)
+        && startsAt <= timestamp
+        && (Number.isFinite(endsAt) ? endsAt > timestamp : true);
+    })
+    .sort((a, b) => Date.parse(b.effectiveFrom) - Date.parse(a.effectiveFrom))[0] ?? null;
 }

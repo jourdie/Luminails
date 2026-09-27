@@ -1,5 +1,5 @@
 import { createClient } from './supabase/server';
-import type { BrandPackage, PackageSkuOption } from './packages';
+import { selectActivePackagePrice, type BrandPackage, type PackageSkuOption, type PackageTierPrice } from './packages';
 import { isPackageEligible, type PackageEligibilityRule } from './package-eligibility';
 
 type PackageRow = { id: string; brand_id: string; slug: string; title: string; audience: string; description: string; long_description: string | null; price_idr: number; compare_at_price_idr: number | null; badge: string | null; visual_tone: 'clay' | 'ivory' | 'plum'; delivery_note: string | null; selection_mode: 'fixed' | 'free_pick'; selection_capacity: number | null; status: string; sort_order: number; starts_at: string | null; ends_at: string | null; minimum_quantity: number | null; minimum_subtotal_idr: number | null; stackable: boolean | null; points_earning_mode: 'normal' | 'reduced' | 'none' | null; points_multiplier: number | null; allow_reward_redemption: boolean | null };
@@ -8,7 +8,7 @@ type AllowedSkuRow = { package_id: string; sku_id: string; sort_order: number };
 type PackageImageRow = { id: string; package_id: string; image_url: string; alt_text: string | null; sort_order: number };
 type BrandRow = { id: string; name: string; slug: string };
 type SkuRow = { id: string; name: string; sku: string; category_label: string | null; series: string | null; color: string | null };
-type PackagePriceRow = { package_id: string; pricing_tier_id: string; unit_price_idr: number; effective_from: string };
+type PackagePriceRow = { package_id: string; pricing_tier_id: string; unit_price_idr: number; effective_from: string; effective_until: string | null; is_active: boolean };
 type BenefitAllowedSkuRow = { benefit_id: string; sku_id: string; sort_order: number };
 type PackageTierBenefitRow = { id: string; package_id: string; pricing_tier_id: string; benefit_type: 'free_items'; quantity: number; label: string | null };
 
@@ -58,16 +58,21 @@ export async function getBrandPackagesFromDatabase(): Promise<BrandPackage[]> {
     db.from('commerce_package_tier_benefit_skus').select('benefit_id, sku_id, sort_order').order('sort_order'),
   ]);
   const allSkuIds = [...new Set([...(packageItemResponse.data ?? []).map((item: PackageItemRow) => item.sku_id), ...(allowedSkuResponse.data ?? []).map((item: AllowedSkuRow) => item.sku_id),  ...(benefitAllowedSkuResponse.data ?? []).map((item: BenefitAllowedSkuRow) => item.sku_id)])] as string[];
+  const nowIso = new Date().toISOString();
   const [{ data: brands }, { data: skus }, { data: packagePrices }] = await Promise.all([
     supabase.from('catalog_brands').select('id, name, slug').in('id', brandIds as string[]),
     allSkuIds.length ? (supabase as any).from('catalog_skus').select('id, name, sku, category_label, series, color').in('id', allSkuIds) : Promise.resolve({ data: [] }),
-    activeTierId ? supabase.from('commerce_package_prices').select('package_id, pricing_tier_id, unit_price_idr, effective_from').in('package_id', packageIds).eq('pricing_tier_id', activeTierId).eq('is_active', true).order('effective_from', { ascending: false }) : Promise.resolve({ data: [] }),
+    activeTierId ? supabase.from('commerce_package_prices').select('package_id, pricing_tier_id, unit_price_idr, effective_from, effective_until, is_active').in('package_id', packageIds).eq('pricing_tier_id', activeTierId).eq('is_active', true).lte('effective_from', nowIso).or('effective_until.is.null,effective_until.gt.' + nowIso).order('effective_from', { ascending: false }) : Promise.resolve({ data: [] }),
   ]);
 
   const brandById = new Map((brands ?? []).map((brand: BrandRow) => [brand.id, brand]));
   const skuById = new Map(((skus ?? []) as unknown as SkuRow[]).map((sku) => [sku.id, sku]));
   const packagePriceById = new Map<string, number>();
-  for (const price of (packagePrices ?? []) as PackagePriceRow[]) if (!packagePriceById.has(price.package_id)) packagePriceById.set(price.package_id, price.unit_price_idr);
+  const activePrices = ((packagePrices ?? []) as PackagePriceRow[]).map<PackageTierPrice>((price) => ({ packageId: price.package_id, unitPriceIdr: Number(price.unit_price_idr), effectiveFrom: price.effective_from, effectiveUntil: price.effective_until, isActive: price.is_active }));
+  for (const item of visiblePackages) {
+    const price = selectActivePackagePrice(activePrices, item.id, new Date(nowIso));
+    if (price) packagePriceById.set(item.id, price.unitPriceIdr);
+  }
   const itemsByPackage = new Map<string, PackageItemRow[]>();
   for (const item of (packageItemResponse.data ?? []) as PackageItemRow[]) {
     const existing = itemsByPackage.get(item.package_id) ?? [];
