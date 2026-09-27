@@ -11,6 +11,7 @@ export function AccountOverview({ identity, profile, loyalty, needsProfile, tier
   const paidOrders = profile?.paid_order_count ?? 0;
   const lifetimeSpend = profile?.lifetime_paid_amount_idr ?? 0;
   const tier = loyalty?.tier_code ?? 'STANDARD';
+  const b2bTier = tierSummary?.name ?? tierSummary?.code ?? 'STANDARD';
   const multiplier = tierSummary?.multiplier ?? 1;
   const orderName = profile?.business_name?.trim() || identity.name;
 
@@ -31,7 +32,7 @@ export function AccountOverview({ identity, profile, loyalty, needsProfile, tier
           </div>
         </div>
         <section className="account-stat-grid">
-          <div className="account-stat account-stat-coral"><span>B2B tier saat ini</span><strong>{tierName(tier)}</strong><small>Multiplier points {multiplier}x</small></div>
+          <div className="account-stat account-stat-coral"><span>B2B tier saat ini</span><strong>{b2bTier}</strong><small>Harga package & benefit mengikuti tier ini.</small></div>
           <div className="account-stat account-stat-lilac"><span>Paid orders</span><strong>{paidOrders}</strong><small>Order berhasil dibayar</small></div>
           <div className="account-stat account-stat-sage"><span>Rolling spend</span><strong>{money(tierSummary?.rollingSpend ?? lifetimeSpend)}</strong><small>Periode tier berjalan</small></div>
         </section>

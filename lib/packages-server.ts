@@ -10,6 +10,7 @@ type BrandRow = { id: string; name: string; slug: string };
 type SkuRow = { id: string; name: string; sku: string };
 type PackagePriceRow = { package_id: string; pricing_tier_id: string; unit_price_idr: number; effective_from: string };
 type BenefitAllowedSkuRow = { benefit_id: string; sku_id: string; sort_order: number };
+type PackageTierBenefitRow = { id: string; package_id: string; pricing_tier_id: string; benefit_type: 'free_items'; quantity: number; label: string | null };
 
 export async function getBrandPackagesFromDatabase(): Promise<BrandPackage[]> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) return [];
@@ -49,10 +50,10 @@ export async function getBrandPackagesFromDatabase(): Promise<BrandPackage[]> {
   const packageImageResponse = await (supabase as any).from('commerce_package_images').select('id, package_id, image_url, alt_text, sort_order').in('package_id', packageIds).order('sort_order');
   const [eligibilityResponse, benefitsResponse, benefitAllowedSkuResponse] = await Promise.all([
     db.from('commerce_package_eligibility').select('package_id, customer_tier_id, customer_id, brand_id, sku_id, minimum_quantity, minimum_order_value_idr').in('package_id', packageIds),
-    db.from('commerce_package_benefits').select('id, package_id, customer_tier_id, reward_sku_id, quantity, variant_rule, notes').in('package_id', packageIds),
-    db.from('commerce_package_benefit_allowed_skus').select('benefit_id, sku_id, sort_order').order('sort_order'),
+    db.from('commerce_package_tier_benefits').select('id, package_id, pricing_tier_id, benefit_type, quantity, label').in('package_id', packageIds),
+    db.from('commerce_package_tier_benefit_skus').select('benefit_id, sku_id, sort_order').order('sort_order'),
   ]);
-  const allSkuIds = [...new Set([...(packageItemResponse.data ?? []).map((item: PackageItemRow) => item.sku_id), ...(allowedSkuResponse.data ?? []).map((item: AllowedSkuRow) => item.sku_id), ...(benefitsResponse.data ?? []).map((item: { reward_sku_id: string }) => item.reward_sku_id), ...(benefitAllowedSkuResponse.data ?? []).map((item: BenefitAllowedSkuRow) => item.sku_id)])] as string[];
+  const allSkuIds = [...new Set([...(packageItemResponse.data ?? []).map((item: PackageItemRow) => item.sku_id), ...(allowedSkuResponse.data ?? []).map((item: AllowedSkuRow) => item.sku_id),  ...(benefitAllowedSkuResponse.data ?? []).map((item: BenefitAllowedSkuRow) => item.sku_id)])] as string[];
   const [{ data: brands }, { data: skus }, { data: packagePrices }] = await Promise.all([
     supabase.from('catalog_brands').select('id, name, slug').in('id', brandIds as string[]),
     allSkuIds.length ? supabase.from('catalog_skus').select('id, name, sku').in('id', allSkuIds) : Promise.resolve({ data: [] }),
@@ -96,8 +97,8 @@ export async function getBrandPackagesFromDatabase(): Promise<BrandPackage[]> {
     existing.push(allowed);
     allowedByBenefit.set(allowed.benefit_id, existing);
   }
-  const benefitsByPackage = new Map<string, Array<{ id: string; customer_tier_id: string | null; reward_sku_id: string; quantity: number; variant_rule: 'admin_selected' | 'customer_selected'; notes: string | null }>>();
-  for (const benefit of (benefitsResponse.data ?? []) as Array<{ id: string; package_id: string; customer_tier_id: string | null; reward_sku_id: string; quantity: number; variant_rule: 'admin_selected' | 'customer_selected'; notes: string | null }>) {
+  const benefitsByPackage = new Map<string, PackageTierBenefitRow[]>();
+  for (const benefit of (benefitsResponse.data ?? []) as Array<PackageTierBenefitRow & { package_id: string }>) {
     const existing = benefitsByPackage.get(benefit.package_id) ?? [];
     existing.push(benefit);
     benefitsByPackage.set(benefit.package_id, existing);
@@ -118,12 +119,12 @@ export async function getBrandPackagesFromDatabase(): Promise<BrandPackage[]> {
     const packageRules = eligibilityByPackage.get(item.id) ?? [];
     const packageSkuIds = [...packageItems.map((content: PackageItemRow) => content.sku_id), ...allowedItems.map((allowed: AllowedSkuRow) => allowed.sku_id)];
     const isEligible = authData.user ? (eligibilityStatusByPackage.get(item.id) ?? true) : isPackageEligible(packageRules, { customerId: null, customerTierId: null, brandId: item.brand_id, selectedSkuIds: packageSkuIds });
-    const packageBenefits = (benefitsByPackage.get(item.id) ?? []).filter((benefit) => !benefit.customer_tier_id || benefit.customer_tier_id === profile?.customer_tier_id).map((benefit) => ({
+    const packageBenefits = (benefitsByPackage.get(item.id) ?? []).filter((benefit) => benefit.pricing_tier_id === activeTierId).map((benefit) => ({
       id: benefit.id,
-      name: skuById.get(benefit.reward_sku_id)?.name ?? 'Free item',
+      name: benefit.label || 'Free item',
       quantity: Number(benefit.quantity),
-      variantRule: benefit.variant_rule,
-      notes: benefit.notes,
+      variantRule: 'customer_selected' as const,
+      notes: null,
       allowedSkus: (allowedByBenefit.get(benefit.id) ?? []).sort((a, b) => a.sort_order - b.sort_order).map((allowed) => {
         const sku = skuById.get(allowed.sku_id);
         return sku ? { id: sku.id, sku: sku.sku, name: sku.name } : null;

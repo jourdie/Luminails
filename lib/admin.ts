@@ -25,6 +25,8 @@ export type AdminPackageAllowedSku = { package_id: string; sku_id: string; sort_
 export type AdminPackageEligibility = { id: string; package_id: string; customer_tier_id: string | null; customer_id: string | null; brand_id: string | null; sku_id: string | null; minimum_quantity: number; minimum_order_value_idr: number; };
 export type AdminPackageBenefit = { id: string; package_id: string; customer_tier_id: string | null; reward_sku_id: string; quantity: number; variant_rule: 'admin_selected' | 'customer_selected'; notes: string | null; allowed_sku_ids?: string[]; };
 export type AdminPackageBenefitAllowedSku = { benefit_id: string; sku_id: string; sort_order: number; };
+export type AdminPackageTierBenefit = { id: string; package_id: string; pricing_tier_id: string; benefit_type: 'free_items'; quantity: number; label: string | null; allowed_sku_ids?: string[]; };
+export type AdminPackageTierBenefitSku = { benefit_id: string; sku_id: string; sort_order: number; };
 export type AdminPackageImage = { id: string; package_id: string; image_url: string; alt_text: string | null; sort_order: number; };
 export type AdminSku = { id: string; product_id: string; sku: string; name: string; category_label: string; series: string | null; color: string | null; public_reference_price_idr: number | null; badge: string | null; is_active: boolean; sort_order: number; };
 export type AdminInventoryLocation = { id: string; code: string; name: string; is_active: boolean; };
@@ -83,6 +85,8 @@ export type AdminDashboard = {
   packageEligibility: AdminPackageEligibility[];
   packageBenefits: AdminPackageBenefit[];
   packageBenefitAllowedSkus: AdminPackageBenefitAllowedSku[];
+  packageTierBenefits: AdminPackageTierBenefit[];
+  packageTierBenefitSkus: AdminPackageTierBenefitSku[];
   auditLogs: AdminAuditLog[];
 };
 const demoProducts: AdminProduct[] = [
@@ -127,7 +131,7 @@ export async function getAdminDashboard(): Promise<AdminDashboard> {
       configured: false, access: 'demo', role: null, permissions: demoPermissions, identity: null,
       products: demoProducts, orders: demoOrders, notifications: demoNotifications, pricingTiers: demoPricingTiers,
       promotions: demoPromotions, adminMemberships: [], brands: demoBrands, packages: [], packageItems: [], packageAllowedSkus: [], packageImages: [], packagePrices: [], skus: demoSkus, inventoryLocations: [],
-      inventoryStock: [], whatsappSettings: { phone: '6289501086888', message: 'Halo Luminails, saya mau konsultasi package dan order.', is_public: true, updated_at: new Date().toISOString() }, customerTiers: [], customers: [], rewards: [], pointTransactions: [], redemptions: [], loyaltySettings: null, packageTypes: [{ id: 'demo-type-home', slug: 'home-studio', name: 'Home studio', description: null, is_active: true, sort_order: 10 }, { id: 'demo-type-salon', slug: 'salon', name: 'Salon', description: null, is_active: true, sort_order: 20 }, { id: 'demo-type-restock', slug: 'restock', name: 'Restock', description: null, is_active: true, sort_order: 30 }], packageEligibility: [], packageBenefits: [], packageBenefitAllowedSkus: [], auditLogs: [],
+      inventoryStock: [], whatsappSettings: { phone: '6289501086888', message: 'Halo Luminails, saya mau konsultasi package dan order.', is_public: true, updated_at: new Date().toISOString() }, customerTiers: [], customers: [], rewards: [], pointTransactions: [], redemptions: [], loyaltySettings: null, packageTypes: [{ id: 'demo-type-home', slug: 'home-studio', name: 'Home studio', description: null, is_active: true, sort_order: 10 }, { id: 'demo-type-salon', slug: 'salon', name: 'Salon', description: null, is_active: true, sort_order: 20 }, { id: 'demo-type-restock', slug: 'restock', name: 'Restock', description: null, is_active: true, sort_order: 30 }], packageEligibility: [], packageBenefits: [], packageBenefitAllowedSkus: [], packageTierBenefits: [], packageTierBenefitSkus: [], auditLogs: [],
     };
   }
 
@@ -137,7 +141,7 @@ export async function getAdminDashboard(): Promise<AdminDashboard> {
   const { data: membership } = await supabase.from('admin_memberships').select('role, is_active, permissions').maybeSingle();
   const deniedPermissions = { catalog: false, orders: false, notifications: false, pricing: false, promotions: false, packages: false, inventory: false, settings: false };
   if (!membership?.is_active) {
-    return { configured: true, access: 'denied', role: null, permissions: deniedPermissions, identity, products: [], orders: [], notifications: [], pricingTiers: [], promotions: [], adminMemberships: [], brands: [], packages: [], packageItems: [], packageAllowedSkus: [], packageImages: [], packagePrices: [], skus: [], inventoryLocations: [], inventoryStock: [], whatsappSettings: null, customerTiers: [], customers: [], rewards: [], pointTransactions: [], redemptions: [], loyaltySettings: null, packageTypes: [], packageEligibility: [], packageBenefits: [], packageBenefitAllowedSkus: [], auditLogs: [] };
+    return { configured: true, access: 'denied', role: null, permissions: deniedPermissions, identity, products: [], orders: [], notifications: [], pricingTiers: [], promotions: [], adminMemberships: [], brands: [], packages: [], packageItems: [], packageAllowedSkus: [], packageImages: [], packagePrices: [], skus: [], inventoryLocations: [], inventoryStock: [], whatsappSettings: null, customerTiers: [], customers: [], rewards: [], pointTransactions: [], redemptions: [], loyaltySettings: null, packageTypes: [], packageEligibility: [], packageBenefits: [], packageBenefitAllowedSkus: [], packageTierBenefits: [], packageTierBenefitSkus: [], auditLogs: [] };
   }
 
   const permissions = { ...deniedPermissions, ...((membership.permissions ?? {}) as Partial<AdminPermissions>) } as AdminPermissions;
@@ -152,7 +156,7 @@ export async function getAdminDashboard(): Promise<AdminDashboard> {
   const canSettings = isOwner || permissions.settings;
   const adminDb = supabase as any;
 
-  const [productsResponse, ordersResponse, shipmentsResponse, notificationsResponse, pricingTiersResponse, promotionsResponse, membershipsResponse, brandsResponse, packagesResponse, packageItemsResponse, packageAllowedSkusResponse, packageImagesResponse, packagePricesResponse, skusResponse, locationsResponse, stockResponse, settingsResponse, customerTiersResponse, customersResponse, accountsResponse, rewardsResponse, ledgerResponse, redemptionsResponse, loyaltySettingsResponse, packageTypesResponse, packageEligibilityResponse, packageBenefitsResponse, packageBenefitAllowedSkusResponse, auditLogsResponse] = await Promise.all([
+  const [productsResponse, ordersResponse, shipmentsResponse, notificationsResponse, pricingTiersResponse, promotionsResponse, membershipsResponse, brandsResponse, packagesResponse, packageItemsResponse, packageAllowedSkusResponse, packageImagesResponse, packagePricesResponse, skusResponse, locationsResponse, stockResponse, settingsResponse, customerTiersResponse, customersResponse, accountsResponse, rewardsResponse, ledgerResponse, redemptionsResponse, loyaltySettingsResponse, packageTypesResponse, packageEligibilityResponse, packageBenefitsResponse, packageBenefitAllowedSkusResponse, packageTierBenefitsResponse, packageTierBenefitSkusResponse, auditLogsResponse] = await Promise.all([
     (canCatalog || canPackages) ? supabase.from('catalog_products').select('id, name, brand, category, is_published').order('sort_order').limit(50) : Promise.resolve({ data: [], error: null }),
     canOrders ? (supabase as any).from('commerce_orders').select('id, customer_id, status, payment_status, fulfillment_status, total_idr, subtotal_idr, discount_idr, customer_notes, contact_phone, created_at').order('created_at', { ascending: false }).limit(500) : Promise.resolve({ data: [], error: null }),
     canOrders ? supabase.from('commerce_shipments').select('order_id, provider_code, tracking_number, status').limit(500) : Promise.resolve({ data: [], error: null }),
@@ -181,6 +185,8 @@ export async function getAdminDashboard(): Promise<AdminDashboard> {
     canPackages ? adminDb.from('commerce_package_eligibility').select('id, package_id, customer_tier_id, customer_id, brand_id, sku_id, minimum_quantity, minimum_order_value_idr').order('created_at').limit(2000) : Promise.resolve({ data: [], error: null }),
     canPackages ? adminDb.from('commerce_package_benefits').select('id, package_id, customer_tier_id, reward_sku_id, quantity, variant_rule, notes').order('created_at').limit(2000) : Promise.resolve({ data: [], error: null }),
     canPackages ? adminDb.from('commerce_package_benefit_allowed_skus').select('benefit_id, sku_id, sort_order').order('sort_order').limit(2000) : Promise.resolve({ data: [], error: null }),
+    canPackages ? adminDb.from('commerce_package_tier_benefits').select('id, package_id, pricing_tier_id, benefit_type, quantity, label').order('created_at').limit(2000) : Promise.resolve({ data: [], error: null }),
+    canPackages ? adminDb.from('commerce_package_tier_benefit_skus').select('benefit_id, sku_id, sort_order').order('sort_order').limit(2000) : Promise.resolve({ data: [], error: null }),
     canPricing || canOrders || canPackages ? adminDb.from('admin_audit_logs').select('id, actor_id, action, entity_type, entity_id, old_value, new_value, created_at').order('created_at', { ascending: false }).limit(500) : Promise.resolve({ data: [], error: null }),
   ]);
 
@@ -254,6 +260,8 @@ export async function getAdminDashboard(): Promise<AdminDashboard> {
     packageEligibility: (packageEligibilityResponse.data ?? []) as AdminPackageEligibility[],
     packageBenefits: ((packageBenefitsResponse.data ?? []) as AdminPackageBenefit[]).map((benefit) => ({ ...benefit, allowed_sku_ids: (packageBenefitAllowedSkusResponse.data ?? []).filter((allowed: AdminPackageBenefitAllowedSku) => allowed.benefit_id === benefit.id).sort((a: AdminPackageBenefitAllowedSku, b: AdminPackageBenefitAllowedSku) => a.sort_order - b.sort_order).map((allowed: AdminPackageBenefitAllowedSku) => allowed.sku_id) })),
     packageBenefitAllowedSkus: (packageBenefitAllowedSkusResponse.data ?? []) as AdminPackageBenefitAllowedSku[],
+    packageTierBenefits: ((packageTierBenefitsResponse.data ?? []) as AdminPackageTierBenefit[]).map((benefit) => ({ ...benefit, allowed_sku_ids: (packageTierBenefitSkusResponse.data ?? []).filter((allowed: AdminPackageTierBenefitSku) => allowed.benefit_id === benefit.id).sort((a: AdminPackageTierBenefitSku, b: AdminPackageTierBenefitSku) => a.sort_order - b.sort_order).map((allowed: AdminPackageTierBenefitSku) => allowed.sku_id) })),
+    packageTierBenefitSkus: (packageTierBenefitSkusResponse.data ?? []) as AdminPackageTierBenefitSku[],
     auditLogs: (auditLogsResponse.data ?? []) as AdminAuditLog[],
   };
 }
