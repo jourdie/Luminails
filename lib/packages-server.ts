@@ -1,5 +1,5 @@
 import { createClient } from './supabase/server';
-import type { BrandPackage } from './packages';
+import type { BrandPackage, PackageSkuOption } from './packages';
 import { isPackageEligible, type PackageEligibilityRule } from './package-eligibility';
 
 type PackageRow = { id: string; brand_id: string; slug: string; title: string; audience: string; description: string; long_description: string | null; price_idr: number; compare_at_price_idr: number | null; badge: string | null; visual_tone: 'clay' | 'ivory' | 'plum'; delivery_note: string | null; selection_mode: 'fixed' | 'free_pick'; selection_capacity: number | null; status: string; sort_order: number; starts_at: string | null; ends_at: string | null; minimum_quantity: number | null; minimum_subtotal_idr: number | null; stackable: boolean | null; points_earning_mode: 'normal' | 'reduced' | 'none' | null; points_multiplier: number | null; allow_reward_redemption: boolean | null };
@@ -7,10 +7,14 @@ type PackageItemRow = { package_id: string; sku_id: string; item_name_snapshot: 
 type AllowedSkuRow = { package_id: string; sku_id: string; sort_order: number };
 type PackageImageRow = { id: string; package_id: string; image_url: string; alt_text: string | null; sort_order: number };
 type BrandRow = { id: string; name: string; slug: string };
-type SkuRow = { id: string; name: string; sku: string };
+type SkuRow = { id: string; name: string; sku: string; category_label: string | null; series: string | null; color: string | null };
 type PackagePriceRow = { package_id: string; pricing_tier_id: string; unit_price_idr: number; effective_from: string };
 type BenefitAllowedSkuRow = { benefit_id: string; sku_id: string; sort_order: number };
 type PackageTierBenefitRow = { id: string; package_id: string; pricing_tier_id: string; benefit_type: 'free_items'; quantity: number; label: string | null };
+
+function toPackageSkuOption(sku: SkuRow | undefined): PackageSkuOption | null {
+  return sku ? { id: sku.id, sku: sku.sku, name: sku.name, categoryLabel: sku.category_label ?? '', series: sku.series ?? '', color: sku.color ?? '' } : null;
+}
 
 export async function getBrandPackagesFromDatabase(): Promise<BrandPackage[]> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) return [];
@@ -56,12 +60,12 @@ export async function getBrandPackagesFromDatabase(): Promise<BrandPackage[]> {
   const allSkuIds = [...new Set([...(packageItemResponse.data ?? []).map((item: PackageItemRow) => item.sku_id), ...(allowedSkuResponse.data ?? []).map((item: AllowedSkuRow) => item.sku_id),  ...(benefitAllowedSkuResponse.data ?? []).map((item: BenefitAllowedSkuRow) => item.sku_id)])] as string[];
   const [{ data: brands }, { data: skus }, { data: packagePrices }] = await Promise.all([
     supabase.from('catalog_brands').select('id, name, slug').in('id', brandIds as string[]),
-    allSkuIds.length ? supabase.from('catalog_skus').select('id, name, sku').in('id', allSkuIds) : Promise.resolve({ data: [] }),
+    allSkuIds.length ? (supabase as any).from('catalog_skus').select('id, name, sku, category_label, series, color').in('id', allSkuIds) : Promise.resolve({ data: [] }),
     activeTierId ? supabase.from('commerce_package_prices').select('package_id, pricing_tier_id, unit_price_idr, effective_from').in('package_id', packageIds).eq('pricing_tier_id', activeTierId).eq('is_active', true).order('effective_from', { ascending: false }) : Promise.resolve({ data: [] }),
   ]);
 
   const brandById = new Map((brands ?? []).map((brand: BrandRow) => [brand.id, brand]));
-  const skuById = new Map((skus ?? []).map((sku: SkuRow) => [sku.id, sku]));
+  const skuById = new Map(((skus ?? []) as unknown as SkuRow[]).map((sku) => [sku.id, sku]));
   const packagePriceById = new Map<string, number>();
   for (const price of (packagePrices ?? []) as PackagePriceRow[]) if (!packagePriceById.has(price.package_id)) packagePriceById.set(price.package_id, price.unit_price_idr);
   const itemsByPackage = new Map<string, PackageItemRow[]>();
@@ -126,9 +130,8 @@ export async function getBrandPackagesFromDatabase(): Promise<BrandPackage[]> {
       variantRule: 'customer_selected' as const,
       notes: null,
       allowedSkus: (allowedByBenefit.get(benefit.id) ?? []).sort((a, b) => a.sort_order - b.sort_order).map((allowed) => {
-        const sku = skuById.get(allowed.sku_id);
-        return sku ? { id: sku.id, sku: sku.sku, name: sku.name } : null;
-      }).filter((sku): sku is { id: string; sku: string; name: string } => Boolean(sku)),
+        return toPackageSkuOption(skuById.get(allowed.sku_id));
+      }).filter((sku): sku is PackageSkuOption => sku !== null),
     }));
     return {
       slug: item.slug,
@@ -158,9 +161,8 @@ export async function getBrandPackagesFromDatabase(): Promise<BrandPackage[]> {
       selectionMode: item.selection_mode ?? 'fixed',
       selectionCapacity: item.selection_capacity ?? null,
       allowedSkus: allowedItems.map((allowed: AllowedSkuRow) => {
-        const sku = skuById.get(allowed.sku_id);
-        return sku ? { id: sku.id, sku: sku.sku, name: sku.name } : null;
-      }).filter((sku): sku is { id: string; sku: string; name: string } => Boolean(sku)),
+        return toPackageSkuOption(skuById.get(allowed.sku_id));
+      }).filter((sku): sku is PackageSkuOption => sku !== null),
       contents,
       highlights: contents.length ? [contents.reduce((total: number, content: { quantity: number }) => total + content.quantity, 0) + ' curated items', 'Built for working studios'] : ['Curated for working studios', 'Package contents can be edited in back office'],
     };

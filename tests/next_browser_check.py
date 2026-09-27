@@ -1,6 +1,9 @@
 from pathlib import Path
+import os
 
 from playwright.sync_api import sync_playwright
+
+BASE_URL = os.environ.get("BASE_URL", "http://127.0.0.1:3000").rstrip("/")
 
 
 def main():
@@ -9,8 +12,9 @@ def main():
         page = browser.new_page(viewport={"width": 1440, "height": 1000})
         page.set_default_timeout(8000)
         page.set_default_navigation_timeout(20000)
-        page.goto("http://127.0.0.1:3000", wait_until="commit")
+        page.goto(BASE_URL, wait_until="domcontentloaded")
         page.wait_for_selector("h1")
+        page.wait_for_load_state("networkidle")
         print("home loaded", flush=True)
 
         assert page.locator("h1").inner_text().startswith("Belanja nail supply")
@@ -34,14 +38,15 @@ def main():
         else:
             assert page.locator(".brand-empty").is_visible()
 
-        page.goto("http://127.0.0.1:3000", wait_until="commit")
-        page.wait_for_selector("h1")
+        page.goto(BASE_URL, wait_until="domcontentloaded")
+        assert page.url.rstrip("/") == BASE_URL
+        page.get_by_role("heading", name="Belanja nail supply, dengan ritme salon kamu.").wait_for(state="visible")
         page.get_by_role("button", name="Daftar akun B2B").click()
         assert page.get_by_role("dialog").is_visible()
         page.get_by_role("button", name="Tutup").click()
 
         mobile = browser.new_page(viewport={"width": 390, "height": 844})
-        mobile.goto("http://127.0.0.1:3000", wait_until="commit")
+        mobile.goto(BASE_URL, wait_until="commit")
         mobile.wait_for_selector("h1")
         mobile.get_by_role("button", name="Buka menu").click()
         assert mobile.locator(".main-nav.mobile-open").is_visible()

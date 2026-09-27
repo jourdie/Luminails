@@ -17,6 +17,8 @@ export type PackageSkuOption = {
   sku: string;
   name: string;
   categoryLabel?: string;
+  series?: string;
+  color?: string;
 };
 
 export type PackageBenefit = { id: string; name: string; quantity: number; variantRule: 'admin_selected' | 'customer_selected'; notes?: string | null; allowedSkus?: PackageSkuOption[] };
