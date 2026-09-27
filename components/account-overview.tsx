@@ -13,6 +13,7 @@ export function AccountOverview({ identity, profile, loyalty, needsProfile, tier
   const tier = loyalty?.tier_code ?? 'STANDARD';
   const b2bTier = tierSummary?.name ?? tierSummary?.code ?? 'STANDARD';
   const multiplier = tierSummary?.multiplier ?? 1;
+  const pointUnitValue = money(tierSummary?.pointUnitValueIdr ?? 10000);
   const orderName = profile?.business_name?.trim() || identity.name;
 
   return <>
@@ -37,7 +38,7 @@ export function AccountOverview({ identity, profile, loyalty, needsProfile, tier
           <div className="account-stat account-stat-sage"><span>Rolling spend</span><strong>{money(tierSummary?.rollingSpend ?? lifetimeSpend)}</strong><small>Periode tier berjalan</small></div>
         </section>
         {tierSummary?.next && <section className="account-tier-progress"><div><p className="eyebrow">Next B2B tier</p><h3>{tierSummary.next.name}</h3><p>Targetnya minimum belanja {money(tierSummary.next.minimumSpend)} dan {tierSummary.next.minimumOrders} paid order.</p></div><div><strong>{money(Math.max(0, tierSummary.next.minimumSpend - tierSummary.lifetimeSpend))}</strong><small>belanja lagi</small><strong>{Math.max(0, tierSummary.next.minimumOrders - tierSummary.paidOrders)}</strong><small>paid order lagi</small></div></section>}
-        <section className="account-loyalty-card"><div><p className="eyebrow">Loyalty / Luminails Points</p><h2>{points(loyalty?.available_points ?? 0)}</h2><p>Poin dihitung dari spend eligible setelah diskon, bukan ongkir atau free item, dan dapat ditukar dengan reward.</p></div><div className="account-loyalty-rule"><span>Aturan Anda</span><strong>{tierName(tier)} &middot; {multiplier}x</strong><small>Rp10.000 spend eligible = 1 base point. Poin bukan uang dan tidak dapat diuangkan.</small></div></section>
+        <section className="account-loyalty-card"><div><p className="eyebrow">Loyalty / Luminails Points</p><h2>{points(loyalty?.available_points ?? 0)}</h2><p>Poin dihitung dari spend eligible setelah diskon, bukan ongkir atau free item, dan dapat ditukar dengan reward.</p></div><div className="account-loyalty-rule"><span>Aturan Anda</span><strong>{tierName(tier)} &middot; {multiplier}x</strong><small>{pointUnitValue} spend eligible = 1 base point. Poin bukan uang dan tidak dapat diuangkan.</small></div></section>
         {needsProfile && <section className="account-profile-nudge"><div><p className="eyebrow">Lengkapi profil studio</p><h3>Supaya checkout berikutnya lebih cepat.</h3><p>Nama studio, nomor HP, dan alamat diperlukan untuk pengiriman package.</p></div><Link className="button button-dark" href="/account/profile">Lengkapi profil <span>-&gt;</span></Link></section>}
         <section className="account-how-it-works"><div><p className="eyebrow">How it works</p><h2>Belanja, kumpulkan,<br /><em>pilih produk gratis.</em></h2></div><div className="account-steps"><div><b>01</b><strong>Order dibayar</strong><span>Poin dihitung dari nilai order paid.</span></div><div><b>02</b><strong>Poin bertambah</strong><span>Multiplier mengikuti customer tier.</span></div><div><b>03</b><strong>Tukar poin ke reward</strong><span>Reward dipilih saat checkout berikutnya.</span></div></div></section>
       </div>

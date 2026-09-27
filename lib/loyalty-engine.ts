@@ -23,7 +23,7 @@ export function calculateEarnedPoints(spendIdr: number, discountIdr: number, tie
 }
 
 export function selectCustomerTier(spendIdr: number, tiers: CustomerTierRule[]) {
-  return tiers.filter((tier) => tier.isActive && tier.minimumRollingSpendIdr <= spendIdr && (tier.maximumRollingSpendIdr === null || spendIdr <= tier.maximumRollingSpendIdr)).sort((a, b) => b.minimumRollingSpendIdr - a.minimumRollingSpendIdr)[0] ?? null;
+  return tiers.filter((tier) => tier.isActive && tier.minimumRollingSpendIdr <= spendIdr && (tier.maximumRollingSpendIdr === null || spendIdr <= tier.maximumRollingSpendIdr)).sort((a, b) => b.priority - a.priority || b.minimumRollingSpendIdr - a.minimumRollingSpendIdr)[0] ?? null;
 }
 
 export function pointsToNextTier(spendIdr: number, tiers: CustomerTierRule[]) {

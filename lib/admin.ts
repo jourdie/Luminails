@@ -203,9 +203,13 @@ export async function getAdminDashboard(): Promise<AdminDashboard> {
   const stock = (stockResponse.data ?? []) as Array<{ id: string; location_id: string; sku_id: string; on_hand_quantity: number; reserved_quantity: number; reorder_point: number; updated_at: string }>;
   const settingsRow = settingsResponse.data as { value?: { phone?: string; message?: string }; is_public?: boolean; updated_at?: string } | null;
   const customerTiers = (customerTiersResponse.data ?? []) as AdminCustomerTier[];
+  const loyaltySettings = (loyaltySettingsResponse.data ?? null) as AdminLoyaltySettings | null;
   const accountByCustomer = new Map(((accountsResponse.data ?? []) as Array<{ customer_id: string; available_points?: number; lifetime_earned_points?: number; lifetime_redeemed_points?: number }>).map((account) => [account.customer_id, account]));
   const now = Date.now();
-  const rollingCutoff = now - 6 * 30 * 24 * 60 * 60 * 1000;
+  const rollingMonths = Math.max(Number(loyaltySettings?.tier_rolling_period_months ?? 6), ...customerTiers.map((tier) => Number(tier.rolling_period_months) || 6), 6);
+  const rollingCutoffDate = new Date(now);
+  rollingCutoffDate.setMonth(rollingCutoffDate.getMonth() - rollingMonths);
+  const rollingCutoff = rollingCutoffDate.getTime();
   const customerMetrics = new Map<string, { rolling: number; orders: number; average: number; last: string | null }>();
   for (const order of (ordersResponse.data ?? []) as Array<{ customer_id?: string | null; subtotal_idr?: number; total_idr?: number; discount_idr?: number; payment_status: string; created_at: string }>) {
     if (!order.customer_id || !['paid', 'partially_refunded'].includes(order.payment_status)) continue;
@@ -255,7 +259,7 @@ export async function getAdminDashboard(): Promise<AdminDashboard> {
     rewards: ((rewardsResponse.data ?? []) as Array<Omit<AdminReward, 'sku_name'>>).map((reward) => ({ ...reward, sku_name: skuById.get(reward.sku_id)?.name ?? reward.sku_id })),
     pointTransactions: (ledgerResponse.data ?? []) as AdminPointTransaction[],
     redemptions: (redemptionsResponse.data ?? []) as AdminRedemption[],
-    loyaltySettings: (loyaltySettingsResponse.data ?? null) as AdminLoyaltySettings | null,
+    loyaltySettings,
     packageTypes: (packageTypesResponse.data ?? []) as AdminPackageType[],
     packageEligibility: (packageEligibilityResponse.data ?? []) as AdminPackageEligibility[],
     packageBenefits: ((packageBenefitsResponse.data ?? []) as AdminPackageBenefit[]).map((benefit) => ({ ...benefit, allowed_sku_ids: (packageBenefitAllowedSkusResponse.data ?? []).filter((allowed: AdminPackageBenefitAllowedSku) => allowed.benefit_id === benefit.id).sort((a: AdminPackageBenefitAllowedSku, b: AdminPackageBenefitAllowedSku) => a.sort_order - b.sort_order).map((allowed: AdminPackageBenefitAllowedSku) => allowed.sku_id) })),

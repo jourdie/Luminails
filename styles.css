@@ -851,7 +851,7 @@ h1 em, h2 em { color: var(--lilac-deep); font-style: italic; }
 
 /* Admin table and navigation polish */
 @media (min-width: 821px) {
-  .admin-sidebar { position: sticky; top: 0; align-self: start; height: 100dvh; overflow-y: auto; }
+  .admin-sidebar { position: sticky; top: 0; z-index: 30; align-self: start; height: 100dvh; min-height: 100dvh; box-sizing: border-box; overflow-y: auto; background: var(--paper-deep); }
 }
 .brand-register-editor-wrap { grid-template-columns: minmax(0, 1fr) auto; align-items: end; column-gap: 18px; }
 .brand-register-editor-wrap > form:last-child { grid-column: 2; grid-row: 1; align-self: end; padding-bottom: 8px; }
@@ -888,6 +888,18 @@ h1 em, h2 em { color: var(--lilac-deep); font-style: italic; }
 .brand-action-buttons form { margin: 0; }
 .brand-action-buttons .button, .brand-action-buttons .text-button { white-space: nowrap; }
 @media (max-width: 900px) { .brand-register-actions { min-width: 0; } }
+
+.package-list-controls { align-items: end; justify-content: flex-start; }
+.package-list-controls > label { display: grid; gap: 5px; min-width: 150px; color: var(--muted); font-size: 9px; }
+.package-list-controls > .admin-table-search-label { flex: 1 1 320px; min-width: min(100%, 320px); }
+.package-list-controls .admin-table-search { margin: 0; }
+.package-type-row { position: relative; grid-template-columns: minmax(150px, 1fr) minmax(130px, 1fr) minmax(190px, 1.4fr) 130px 190px; min-width: 860px; padding-right: 12px; }
+.package-type-row > form:first-child { display: contents; }
+.package-type-row > form:first-child > input[type='hidden'] { display: none; }
+.package-type-row > form:first-child > button { position: absolute; right: 108px; top: 12px; }
+.package-type-row > form:last-child { position: absolute; right: 12px; top: 12px; display: flex; }
+.package-type-row > form:first-child > small { grid-column: 1 / -1; }
+.package-type-actions { display: contents; }
 
 /* Address CRUD actions keep edit and delete together. */
 .address-card-actions { display: flex; align-items: flex-start; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }

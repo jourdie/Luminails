@@ -42,6 +42,10 @@ const tiers = [
   { id: 'vip2', code: 'VIP_2', name: 'VIP 2', minimumRollingSpendIdr: 5_000_000, maximumRollingSpendIdr: null, rollingPeriodMonths: 6, pointMultiplier: 1.5, priority: 30, isActive: true },
 ];
 assert.equal(selectCustomerTier(2_000_000, tiers)?.code, 'VIP_1');
+assert.equal(selectCustomerTier(2_000_000, [
+  { ...tiers[1], id: 'overlap-low', code: 'OVERLAP_LOW', maximumRollingSpendIdr: null, priority: 10 },
+  { ...tiers[1], id: 'overlap-high', code: 'OVERLAP_HIGH', maximumRollingSpendIdr: null, priority: 20 },
+])?.code, 'OVERLAP_HIGH');
 assert.equal(pointsToNextTier(2_500_000, tiers)?.remainingSpendIdr, 2_500_000);
 assert.equal(isPackageEligible([{ customerTierId: 'vip1', customerId: null, brandId: 'party', skuId: null, minimumQuantity: 1, minimumOrderValueIdr: 0 }], { customerTierId: 'vip1', brandId: 'party' }), true);
 assert.equal(isPackageEligible([{ customerTierId: 'vip1', customerId: null, brandId: 'party', skuId: null, minimumQuantity: 1, minimumOrderValueIdr: 0 }], { customerTierId: 'basic', brandId: 'party' }), false);
