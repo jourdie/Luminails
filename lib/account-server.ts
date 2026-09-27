@@ -1,5 +1,6 @@
 import { createClient } from './supabase/server';
 import { identityFromUser, needsCustomerProfile, type AccountIdentity, type CustomerLoyalty, type CustomerProfile } from './account';
+import { summarizeExpiringPointLots } from './loyalty-engine';
 
 export type AccountTierSummary = {
   code: string;
@@ -57,13 +58,9 @@ export async function getAccountContext(): Promise<AccountContext> {
   const eligible = (order: { subtotal_idr?: number; total_idr?: number; discount_idr?: number }) => Math.max(0, Number(order.subtotal_idr ?? order.total_idr ?? 0) - Number(order.discount_idr ?? 0));
   const rollingSpend = customerOrders.filter((order) => new Date(order.created_at).getTime() >= rollingCutoff && ['paid', 'partially_refunded'].includes(order.payment_status ?? '')).reduce((sum, order) => sum + eligible(order), 0);
   const pointUnitValue = Math.max(1, Number((pointSettingsResponse.data as { point_unit_value_idr?: number } | null)?.point_unit_value_idr ?? 10000));
-  const expiryCutoff = Date.now() + 30 * 24 * 60 * 60 * 1000;
-  const expiringLots = ((pointLotsResponse.data ?? []) as Array<{ remaining_points?: number; expires_at: string }>).filter((lot) => {
-    const expires = new Date(lot.expires_at).getTime();
-    return Number.isFinite(expires) && expires <= expiryCutoff;
-  });
-  const expiringPoints = expiringLots.reduce((sum, lot) => sum + Number(lot.remaining_points ?? 0), 0);
-  const nextExpiryAt = expiringLots[0]?.expires_at ?? null;
+  const expirySummary = summarizeExpiringPointLots(((pointLotsResponse.data ?? []) as Array<{ remaining_points?: number; expires_at: string }>).map((lot) => ({ remainingPoints: Number(lot.remaining_points ?? 0), expiresAt: lot.expires_at })));
+  const expiringPoints = expirySummary.points;
+  const nextExpiryAt = expirySummary.nextExpiryAt;
   const currentTier = tiers.find((tier) => tier.id === profile?.customer_tier_id || tier.id === loyalty?.customer_tier_id) ?? tiers.find((tier) => tier.code === loyalty?.tier_code) ?? tiers[0];
   const pendingPoints = customerOrders.filter((order) => order.payment_status === 'pending').reduce((sum, order) => sum + Math.floor(eligible(order) / pointUnitValue * Number(currentTier?.point_multiplier ?? 1)), 0);
   const nextPricingTier = pricingTiers.filter((tier) => tier.is_active && (Number(tier.minimum_lifetime_spend_idr) > lifetimeSpend || Number(tier.minimum_paid_order_count) > paidOrders)).sort((a, b) => a.sort_order - b.sort_order || Number(a.minimum_lifetime_spend_idr) - Number(b.minimum_lifetime_spend_idr))[0] ?? null;

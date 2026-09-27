@@ -116,7 +116,7 @@ export async function updateRedemptionStatus(_previous: LoyaltyActionState, form
   const status = String(formData.get('status') ?? '').trim();
   if (!id || !['pending', 'applied', 'confirmed', 'fulfilled', 'cancelled', 'reversed'].includes(status)) return { ok: false, message: 'Status redemption tidak valid.' };
   const { error } = await access.supabase.from('loyalty_redemptions').update({ status }).eq('id', id);
-  if (error) return { ok: false, message: 'Status redemption belum diperbarui.' };
+  if (error) return { ok: false, message: error.message.includes('INVALID_REDEMPTION_STATUS_TRANSITION') ? 'Perubahan status tidak diperbolehkan. Status redemption hanya boleh bergerak maju atau dibatalkan.' : 'Status redemption belum diperbarui.' };
   revalidatePath('/admin'); return { ok: true, message: 'Status redemption diperbarui.' };
 }
 

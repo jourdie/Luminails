@@ -44,6 +44,19 @@ export function calculateRefundReversalPoints(issuedPoints: number, eligibleSpen
 
 export type PointLot = { id: string; remainingPoints: number; expiresAt: string };
 
+export function summarizeExpiringPointLots(lots: Array<{ remainingPoints: number; expiresAt: string }>, asOf = Date.now(), withinDays = 30) {
+  const cutoff = asOf + Math.max(0, withinDays) * 24 * 60 * 60 * 1000;
+  const expiring = lots
+    .filter((lot) => lot.remainingPoints > 0)
+    .map((lot) => ({ ...lot, expiryTime: new Date(lot.expiresAt).getTime() }))
+    .filter((lot) => Number.isFinite(lot.expiryTime) && lot.expiryTime > asOf && lot.expiryTime <= cutoff)
+    .sort((a, b) => a.expiryTime - b.expiryTime);
+  return {
+    points: expiring.reduce((sum, lot) => sum + Math.trunc(lot.remainingPoints), 0),
+    nextExpiryAt: expiring[0]?.expiresAt ?? null,
+  };
+}
+
 export function consumePointLots(lots: PointLot[], pointsToConsume: number) {
   let remaining = Math.max(0, Math.trunc(pointsToConsume));
   const consumed: Array<{ id: string; points: number }> = [];

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { selectActivePackagePrice } from '../lib/packages.ts';
-import { calculateBasePoints, calculateEarnedPoints, calculateRefundReversalPoints, consumePointLots, eligibleSpend, hasPackageConflict, isManualTierOverrideActive, pointsToNextTier, rewardCostRatio, selectCustomerTier } from '../lib/loyalty-engine.ts';
+import { calculateBasePoints, calculateEarnedPoints, calculateRefundReversalPoints, consumePointLots, eligibleSpend, hasPackageConflict, isManualTierOverrideActive, pointsToNextTier, rewardCostRatio, selectCustomerTier, summarizeExpiringPointLots } from '../lib/loyalty-engine.ts';
 import { isPackageEligible, validatePackageBenefitSelections } from '../lib/package-eligibility.ts';
 
 assert.equal(eligibleSpend(1_280_000, 80_000), 1_200_000);
@@ -13,6 +13,16 @@ assert.equal(calculateEarnedPoints(5_000_000, 0, 1.2), 600);
 assert.equal(calculateEarnedPoints(5_000_000, 0, 1.5), 750);
 assert.equal(calculateEarnedPoints(1_320_000, 0, 1.5), 198);
 assert.equal(calculateRefundReversalPoints(198, 1_320_000, 660_000), 99);
+assert.equal(calculateRefundReversalPoints(100, 1_000_000, 2_000_000), 100);
+assert.equal(-100 + 250, 150);
+assert.deepEqual(summarizeExpiringPointLots([
+  { remainingPoints: 100, expiresAt: '2026-10-01T00:00:00.000Z' },
+  { remainingPoints: 50, expiresAt: '2026-10-20T00:00:00.000Z' },
+  { remainingPoints: 99, expiresAt: '2026-09-20T00:00:00.000Z' },
+], Date.parse('2026-09-25T00:00:00.000Z'), 30), {
+  points: 150,
+  nextExpiryAt: '2026-10-01T00:00:00.000Z',
+});
 assert.deepEqual(consumePointLots([
   { id: 'old', remainingPoints: 80, expiresAt: '2026-10-01T00:00:00.000Z' },
   { id: 'new', remainingPoints: 100, expiresAt: '2027-01-01T00:00:00.000Z' },
