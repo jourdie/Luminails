@@ -207,11 +207,11 @@ export async function deleteCatalogSku(previous: AdminActionState, formData: For
     access.supabase.from('inventory_stock').select('id', { count: 'exact', head: true }).eq('sku_id', skuId),
     access.supabase.from('commerce_order_items').select('id', { count: 'exact', head: true }).eq('sku_id', skuId),
   ]);
-  if ((packageCount ?? 0) > 0 || (allowedCount ?? 0) > 0) return { ok: false, message: 'SKU tidak dapat dihapus karena masih dipakai package. Hapus dari package terlebih dahulu.' };
-  if ((stockCount ?? 0) > 0) return { ok: false, message: 'SKU tidak dapat dihapus karena masih memiliki stock. Kosongkan stock terlebih dahulu.' };
-  if ((orderCount ?? 0) > 0) return { ok: false, message: 'SKU tidak dapat dihapus karena sudah tercatat pada transaksi. Nonaktifkan SKU saja.' };
+  if ((packageCount ?? 0) > 0 || (allowedCount ?? 0) > 0) return { ok: false, message: `SKU ${sku.sku} belum bisa dihapus: masih dipakai ${packageCount ?? 0} isi package dan ${allowedCount ?? 0} whitelist free-pick. Hapus SKU dari package tersebut dahulu, atau nonaktifkan SKU.` };
+  if ((stockCount ?? 0) > 0) return { ok: false, message: `SKU ${sku.sku} belum bisa dihapus: masih memiliki ${stockCount ?? 0} record inventory. Hapus stock record dahulu, atau nonaktifkan SKU.` };
+  if ((orderCount ?? 0) > 0) return { ok: false, message: `SKU ${sku.sku} belum bisa dihapus: sudah tercatat pada ${orderCount ?? 0} item transaksi. Nonaktifkan SKU agar histori order tetap aman.` };
   const { error } = await access.supabase.from('catalog_skus').delete().eq('id', skuId);
-  if (error) return { ok: false, message: 'SKU belum dapat dihapus karena masih memiliki dependency database.' };
+  if (error) return { ok: false, message: `SKU belum dapat dihapus: ${error.message}` };
   revalidatePath('/'); revalidatePath('/admin'); revalidatePath('/packages');
   return { ok: true, message: `SKU ${sku.sku} berhasil dihapus.` };
 }export async function updatePricingTier(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
