@@ -25,7 +25,7 @@ export type AdminPackageAllowedSku = { package_id: string; sku_id: string; sort_
 export type AdminPackageEligibility = { id: string; package_id: string; customer_tier_id: string | null; customer_id: string | null; brand_id: string | null; sku_id: string | null; minimum_quantity: number; minimum_order_value_idr: number; };
 export type AdminPackageBenefit = { id: string; package_id: string; customer_tier_id: string | null; reward_sku_id: string; quantity: number; variant_rule: 'admin_selected' | 'customer_selected'; notes: string | null; allowed_sku_ids?: string[]; };
 export type AdminPackageBenefitAllowedSku = { benefit_id: string; sku_id: string; sort_order: number; };
-export type AdminPackageTierBenefit = { id: string; package_id: string; pricing_tier_id: string; benefit_type: 'free_items'; quantity: number; label: string | null; allowed_sku_ids?: string[]; };
+export type AdminPackageTierBenefit = { id: string; package_id: string; pricing_tier_id: string; benefit_type: 'free_items'; quantity: number; label: string | null; variant_rule: 'admin_selected' | 'customer_selected'; fixed_sku_id: string | null; allowed_sku_ids?: string[]; };
 export type AdminPackageTierBenefitSku = { benefit_id: string; sku_id: string; sort_order: number; };
 export type AdminPackageImage = { id: string; package_id: string; image_url: string; alt_text: string | null; sort_order: number; };
 export type AdminSku = { id: string; product_id: string; sku: string; name: string; category_label: string; series: string | null; color: string | null; public_reference_price_idr: number | null; badge: string | null; is_active: boolean; sort_order: number; };
@@ -185,7 +185,7 @@ export async function getAdminDashboard(): Promise<AdminDashboard> {
     canPackages ? adminDb.from('commerce_package_eligibility').select('id, package_id, customer_tier_id, customer_id, brand_id, sku_id, minimum_quantity, minimum_order_value_idr').order('created_at').limit(2000) : Promise.resolve({ data: [], error: null }),
     canPackages ? adminDb.from('commerce_package_benefits').select('id, package_id, customer_tier_id, reward_sku_id, quantity, variant_rule, notes').order('created_at').limit(2000) : Promise.resolve({ data: [], error: null }),
     canPackages ? adminDb.from('commerce_package_benefit_allowed_skus').select('benefit_id, sku_id, sort_order').order('sort_order').limit(2000) : Promise.resolve({ data: [], error: null }),
-    canPackages ? adminDb.from('commerce_package_tier_benefits').select('id, package_id, pricing_tier_id, benefit_type, quantity, label').order('created_at').limit(2000) : Promise.resolve({ data: [], error: null }),
+    canPackages ? adminDb.from('commerce_package_tier_benefits').select('id, package_id, pricing_tier_id, benefit_type, quantity, label, variant_rule, fixed_sku_id').order('created_at').limit(2000) : Promise.resolve({ data: [], error: null }),
     canPackages ? adminDb.from('commerce_package_tier_benefit_skus').select('benefit_id, sku_id, sort_order').order('sort_order').limit(2000) : Promise.resolve({ data: [], error: null }),
     canPricing || canOrders || canPackages ? adminDb.from('admin_audit_logs').select('id, actor_id, action, entity_type, entity_id, old_value, new_value, created_at').order('created_at', { ascending: false }).limit(500) : Promise.resolve({ data: [], error: null }),
   ]);

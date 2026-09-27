@@ -10,7 +10,7 @@ type BrandRow = { id: string; name: string; slug: string };
 type SkuRow = { id: string; name: string; sku: string; category_label: string | null; series: string | null; color: string | null };
 type PackagePriceRow = { package_id: string; pricing_tier_id: string; unit_price_idr: number; effective_from: string; effective_until: string | null; is_active: boolean };
 type BenefitAllowedSkuRow = { benefit_id: string; sku_id: string; sort_order: number };
-type PackageTierBenefitRow = { id: string; package_id: string; pricing_tier_id: string; benefit_type: 'free_items'; quantity: number; label: string | null };
+type PackageTierBenefitRow = { id: string; package_id: string; pricing_tier_id: string; benefit_type: 'free_items'; quantity: number; label: string | null; variant_rule: 'admin_selected' | 'customer_selected'; fixed_sku_id: string | null };
 
 function toPackageSkuOption(sku: SkuRow | undefined): PackageSkuOption | null {
   return sku ? { id: sku.id, sku: sku.sku, name: sku.name, categoryLabel: sku.category_label ?? '', series: sku.series ?? '', color: sku.color ?? '' } : null;
@@ -54,7 +54,7 @@ export async function getBrandPackagesFromDatabase(): Promise<BrandPackage[]> {
   const packageImageResponse = await (supabase as any).from('commerce_package_images').select('id, package_id, image_url, alt_text, sort_order').in('package_id', packageIds).order('sort_order');
   const [eligibilityResponse, benefitsResponse, benefitAllowedSkuResponse] = await Promise.all([
     db.from('commerce_package_eligibility').select('package_id, customer_tier_id, customer_id, brand_id, sku_id, minimum_quantity, minimum_order_value_idr').in('package_id', packageIds),
-    db.from('commerce_package_tier_benefits').select('id, package_id, pricing_tier_id, benefit_type, quantity, label').in('package_id', packageIds),
+    db.from('commerce_package_tier_benefits').select('id, package_id, pricing_tier_id, benefit_type, quantity, label, variant_rule, fixed_sku_id').in('package_id', packageIds),
     db.from('commerce_package_tier_benefit_skus').select('benefit_id, sku_id, sort_order').order('sort_order'),
   ]);
   const allSkuIds = [...new Set([...(packageItemResponse.data ?? []).map((item: PackageItemRow) => item.sku_id), ...(allowedSkuResponse.data ?? []).map((item: AllowedSkuRow) => item.sku_id),  ...(benefitAllowedSkuResponse.data ?? []).map((item: BenefitAllowedSkuRow) => item.sku_id)])] as string[];
@@ -132,9 +132,9 @@ export async function getBrandPackagesFromDatabase(): Promise<BrandPackage[]> {
       id: benefit.id,
       name: benefit.label || 'Free item',
       quantity: Number(benefit.quantity),
-      variantRule: 'customer_selected' as const,
+      variantRule: benefit.variant_rule ?? 'customer_selected',
       notes: null,
-      allowedSkus: (allowedByBenefit.get(benefit.id) ?? []).sort((a, b) => a.sort_order - b.sort_order).map((allowed) => {
+      allowedSkus: (benefit.variant_rule === 'admin_selected' && benefit.fixed_sku_id ? [{ benefit_id: benefit.id, sku_id: benefit.fixed_sku_id, sort_order: 0 }] : (allowedByBenefit.get(benefit.id) ?? [])).sort((a, b) => a.sort_order - b.sort_order).map((allowed) => {
         return toPackageSkuOption(skuById.get(allowed.sku_id));
       }).filter((sku): sku is PackageSkuOption => sku !== null),
     }));

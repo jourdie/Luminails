@@ -232,6 +232,7 @@ function PackageItemRow({ item, canEdit }: { item: AdminPackageItem; canEdit: bo
 function PackageRulesEditor({ packageId, rules, benefits, tierBenefits, customerTiers, pricingTiers, brands, skus, canEdit }: { packageId: string; rules: AdminPackageEligibility[]; benefits: AdminPackageBenefit[]; tierBenefits: AdminPackageTierBenefit[]; customerTiers: AdminCustomerTier[]; pricingTiers: AdminPricingTier[]; brands: AdminBrand[]; skus: AdminSku[]; canEdit: boolean }) {
   const [ruleState, ruleAction, rulePending] = useActionState(savePackageEligibility, initialState);
   const [benefitState, benefitAction, benefitPending] = useActionState(savePackageTierBenefit, initialState);
+  const [benefitVariantRule, setBenefitVariantRule] = useState<'admin_selected' | 'customer_selected'>('customer_selected');
   const activeCustomerTiers = customerTiers.filter((tier) => tier.is_active);
   const activePricingTiers = pricingTiers.filter((tier) => tier.is_active);
   const activeBrands = brands.filter((brand) => brand.is_published);
@@ -256,12 +257,13 @@ function PackageRulesEditor({ packageId, rules, benefits, tierBenefits, customer
     <form className="admin-crud-inline-form package-rule-form" action={benefitAction}>
       <input type="hidden" name="package_id" value={packageId} />
       <label>Tier B2B<select name="pricing_tier_id" required disabled={!canEdit}><option value="">Pilih tier</option>{activePricingTiers.map((tier) => <option key={tier.id} value={tier.id}>{tier.name} ? {tier.code}</option>)}</select></label>
+      <label>Mode variasi<select name="variant_rule" value={benefitVariantRule} onChange={(event) => setBenefitVariantRule(event.target.value as 'admin_selected' | 'customer_selected')} disabled={!canEdit}><option value="customer_selected">Customer pilih SKU</option><option value="admin_selected">Admin tentukan SKU</option></select><small className="field-help">Pilih customer jika bonus boleh memilih variasi; pilih admin jika item bonus sudah fixed.</small></label>
       <label>Jumlah item gratis<input name="quantity" type="number" min="1" defaultValue="1" disabled={!canEdit} /><small className="field-help">Per package. Contoh Silver: 2 tools.</small></label>
       <label>Label benefit<input name="label" placeholder="Tools pilihan gratis" disabled={!canEdit} /></label>
-      <label className="admin-crud-wide">SKU yang boleh dipilih customer <div className="package-allowed-grid">{activeSkus.map((sku) => <label key={sku.id} className="admin-check"><input name="allowed_sku_ids" value={sku.id} type="checkbox" disabled={!canEdit} /><span><strong>{sku.sku}</strong><small>{sku.name}</small></span></label>)}</div><small className="field-help">Customer akan memilih SKU dari whitelist ini saat checkout. Jumlah pilihan mengikuti jumlah benefit.</small></label>
+      {benefitVariantRule === 'admin_selected' ? <label>SKU tetap untuk bonus<select name="fixed_sku_id" required disabled={!canEdit}><option value="">Pilih SKU</option>{activeSkus.map((sku) => <option key={sku.id} value={sku.id}>{sku.sku} 7 {sku.name}</option>)}</select><small className="field-help">SKU ini otomatis masuk order; customer tidak memilih variasi.</small></label> : <label className="admin-crud-wide">SKU yang boleh dipilih customer <div className="package-allowed-grid">{activeSkus.map((sku) => <label key={sku.id} className="admin-check"><input name="allowed_sku_ids" value={sku.id} type="checkbox" disabled={!canEdit} /><span><strong>{sku.sku}</strong><small>{sku.name}</small></span></label>)}</div><small className="field-help">Customer akan memilih SKU dari whitelist ini saat checkout. Jumlah pilihan mengikuti jumlah benefit.</small></label>}
       <div className="admin-crud-record-foot"><span className={benefitState.message ? (benefitState.ok ? 'action-success' : 'action-error') : 'admin-form-note'}>{benefitState.message || 'Benefit B2B tampil sesuai pricing tier customer.'}</span><button className="button button-outline" type="submit" disabled={!canEdit || benefitPending}>{benefitPending ? '...' : 'Tambah benefit tier'}</button></div>
     </form>
-    {tierBenefits.length > 0 && <div className="admin-data-table package-rule-table" role="table" aria-label="Benefit B2B package"><div className="admin-data-head package-rule-head" role="row"><span>Tier / benefit</span><span>SKU yang boleh dipilih</span><span>Aksi</span></div>{tierBenefits.map((benefit) => <PackageTierBenefitRow key={benefit.id} benefit={benefit} canEdit={canEdit} tierName={pricingTierName(benefit.pricing_tier_id)} skuNames={(benefit.allowed_sku_ids ?? []).map(skuName).join(', ') || 'Belum ada SKU'} pricingTiers={activePricingTiers} skus={activeSkus} />)}</div>}
+    {tierBenefits.length > 0 && <div className="admin-data-table package-rule-table" role="table" aria-label="Benefit B2B package"><div className="admin-data-head package-rule-head" role="row"><span>Tier / benefit</span><span>Mode / SKU</span><span>Aksi</span></div>{tierBenefits.map((benefit) => <PackageTierBenefitRow key={benefit.id} benefit={benefit} canEdit={canEdit} tierName={pricingTierName(benefit.pricing_tier_id)} skuNames={benefit.variant_rule === 'admin_selected' ? skuName(benefit.fixed_sku_id) : (benefit.allowed_sku_ids ?? []).map(skuName).join(', ') || 'Belum ada SKU'} pricingTiers={activePricingTiers} skus={activeSkus} />)}</div>}
     {benefits.length > 0 && <p className="field-help">Benefit lama berbasis loyalty tier masih tersimpan untuk kompatibilitas, tetapi benefit baru gunakan B2B Tier di atas.</p>}
   </div>;
 }
@@ -275,10 +277,11 @@ function PackageTierBenefitRow({ benefit, canEdit, tierName, skuNames, pricingTi
   const [state, action, pending] = useActionState(savePackageTierBenefit, initialState);
   const [deleteState, deleteAction, deletePending] = useActionState(deletePackageTierBenefit, initialState);
   const [editing, setEditing] = useState(false);
+  const [variantRule, setVariantRule] = useState<'admin_selected' | 'customer_selected'>(benefit.variant_rule ?? 'customer_selected');
   const allowed = new Set(benefit.allowed_sku_ids ?? []);
   return <div className="admin-data-row package-rule-row package-tier-benefit-row" role="row">
-    <div><strong>{tierName} ? {benefit.quantity} item gratis</strong><small>{benefit.label || 'Free items'}</small></div>
-    <div><small>{skuNames}</small></div>
+    <div><strong>{tierName} 7 {benefit.quantity} item gratis</strong><small>{benefit.label || 'Free items'}</small></div>
+    <div><small>{variantRule === 'admin_selected' ? 'Admin fixed 7 ' : 'Customer pilih 7 '}{skuNames}</small></div>
     <div className="package-rule-actions">
       <button className="button button-outline" type="button" onClick={() => setEditing((value) => !value)}>{editing ? 'Tutup' : 'Edit'}</button>
       <form action={deleteAction} onSubmit={(event) => { if (!window.confirm('Hapus benefit B2B ini?')) event.preventDefault(); }}>
@@ -291,9 +294,10 @@ function PackageTierBenefitRow({ benefit, canEdit, tierName, skuNames, pricingTi
       <input type="hidden" name="benefit_id" value={benefit.id} />
       <input type="hidden" name="package_id" value={benefit.package_id} />
       <label>Tier B2B<select name="pricing_tier_id" defaultValue={benefit.pricing_tier_id} disabled={!canEdit}>{pricingTiers.map((tier) => <option key={tier.id} value={tier.id}>{tier.name} ? {tier.code}</option>)}</select></label>
+      <label>Mode variasi<select name="variant_rule" value={variantRule} onChange={(event) => setVariantRule(event.target.value as 'admin_selected' | 'customer_selected')} disabled={!canEdit}><option value="customer_selected">Customer pilih SKU</option><option value="admin_selected">Admin tentukan SKU</option></select></label>
       <label>Jumlah item gratis<input name="quantity" type="number" min="1" defaultValue={benefit.quantity} disabled={!canEdit} /></label>
       <label>Label benefit<input name="label" defaultValue={benefit.label ?? ''} disabled={!canEdit} /></label>
-      <label className="admin-crud-wide">SKU yang boleh dipilih customer<div className="package-allowed-grid">{skus.map((sku) => <label key={sku.id} className="admin-check"><input name="allowed_sku_ids" value={sku.id} type="checkbox" defaultChecked={allowed.has(sku.id)} disabled={!canEdit} /><span><strong>{sku.sku}</strong><small>{sku.name}</small></span></label>)}</div></label>
+      {variantRule === 'admin_selected' ? <label>SKU tetap untuk bonus<select name="fixed_sku_id" defaultValue={benefit.fixed_sku_id ?? ''} required disabled={!canEdit}><option value="">Pilih SKU</option>{skus.map((sku) => <option key={sku.id} value={sku.id}>{sku.sku} 7 {sku.name}</option>)}</select></label> : <label className="admin-crud-wide">SKU yang boleh dipilih customer<div className="package-allowed-grid">{skus.map((sku) => <label key={sku.id} className="admin-check"><input name="allowed_sku_ids" value={sku.id} type="checkbox" defaultChecked={allowed.has(sku.id)} disabled={!canEdit} /><span><strong>{sku.sku}</strong><small>{sku.name}</small></span></label>)}</div></label>}
       <div className="admin-crud-record-foot"><span className={state.message ? (state.ok ? 'action-success' : 'action-error') : 'admin-form-note'}>{state.message || 'Perubahan benefit akan berlaku untuk checkout tier ini.'}</span><button className="button button-dark" type="submit" disabled={!canEdit || pending}>{pending ? 'Menyimpan...' : 'Simpan benefit'}</button></div>
     </form>}
   </div>;

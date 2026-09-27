@@ -917,26 +917,33 @@ export async function savePackageTierBenefit(previous: AdminActionState, formDat
   const pricingTierId = String(formData.get('pricing_tier_id') ?? '').trim();
   const quantity = integerOrZero(formData.get('quantity'));
   const label = String(formData.get('label') ?? '').trim() || null;
+  const variantRule = String(formData.get('variant_rule') ?? 'customer_selected');
+  const fixedSkuId = String(formData.get('fixed_sku_id') ?? '').trim() || null;
   const allowedSkuIds = Array.from(new Set(formData.getAll('allowed_sku_ids').map((value) => String(value).trim()).filter(Boolean)));
-  if (!packageId || !pricingTierId || quantity < 1) return { ok: false, message: 'Package, tier B2B, dan jumlah item gratis wajib diisi dengan benar.' };
-  if (allowedSkuIds.length === 0) return { ok: false, message: 'Pilih minimal satu SKU yang boleh dipilih customer.' };
+  if (!packageId || !pricingTierId || quantity < 1 || !['admin_selected', 'customer_selected'].includes(variantRule)) return { ok: false, message: 'Package, tier B2B, mode variasi, dan jumlah item gratis wajib diisi dengan benar.' };
+  if (variantRule === 'admin_selected' && !fixedSkuId) return { ok: false, message: 'Pilih SKU tetap yang ditentukan admin.' };
+  if (variantRule === 'customer_selected' && allowedSkuIds.length === 0) return { ok: false, message: 'Pilih minimal satu SKU yang boleh dipilih customer.' };
   const access = await requireAdmin('packages');
   if (!access.ok) return access;
   const db = access.supabase as any;
-  const { data: activeSkus, error: skuError } = await db.from('catalog_skus').select('id').in('id', allowedSkuIds).eq('is_active', true);
-  if (skuError || !activeSkus || activeSkus.length !== allowedSkuIds.length) return { ok: false, message: 'Sebagian SKU benefit tidak ditemukan atau nonaktif.' };
+  const skuIdsToValidate = variantRule === 'admin_selected' ? [fixedSkuId as string] : allowedSkuIds;
+  const { data: activeSkus, error: skuError } = await db.from('catalog_skus').select('id').in('id', skuIdsToValidate).eq('is_active', true);
+  if (skuError || !activeSkus || activeSkus.length !== skuIdsToValidate.length) return { ok: false, message: 'SKU benefit tidak ditemukan atau nonaktif.' };
   let savedId = benefitId;
+  const payload = { package_id: packageId, pricing_tier_id: pricingTierId, benefit_type: 'free_items', quantity, label, variant_rule: variantRule, fixed_sku_id: variantRule === 'admin_selected' ? fixedSkuId : null, updated_at: new Date().toISOString() };
   if (benefitId) {
-    const { data, error } = await db.from('commerce_package_tier_benefits').update({ package_id: packageId, pricing_tier_id: pricingTierId, benefit_type: 'free_items', quantity, label, updated_at: new Date().toISOString() }).eq('id', benefitId).select('id').maybeSingle();
+    const { data, error } = await db.from('commerce_package_tier_benefits').update(payload).eq('id', benefitId).select('id').maybeSingle();
     if (error || !data) return { ok: false, message: 'Benefit B2B belum dapat diperbarui. Pastikan satu benefit saja untuk setiap tier pada package.' };
     await db.from('commerce_package_tier_benefit_skus').delete().eq('benefit_id', benefitId);
   } else {
-    const { data, error } = await db.from('commerce_package_tier_benefits').insert({ package_id: packageId, pricing_tier_id: pricingTierId, benefit_type: 'free_items', quantity, label }).select('id').single();
+    const { data, error } = await db.from('commerce_package_tier_benefits').insert(payload).select('id').single();
     if (error || !data) return { ok: false, message: 'Benefit B2B belum tersimpan. Tier ini mungkin sudah memiliki benefit pada package.' };
     savedId = data.id;
   }
-  const { error: allowedError } = await db.from('commerce_package_tier_benefit_skus').insert(allowedSkuIds.map((skuId, index) => ({ benefit_id: savedId, sku_id: skuId, sort_order: index })));
-  if (allowedError) return { ok: false, message: 'Daftar SKU benefit belum tersimpan.' };
+  if (variantRule === 'customer_selected') {
+    const { error: allowedError } = await db.from('commerce_package_tier_benefit_skus').insert(allowedSkuIds.map((skuId, index) => ({ benefit_id: savedId, sku_id: skuId, sort_order: index })));
+    if (allowedError) return { ok: false, message: 'Daftar SKU benefit belum tersimpan.' };
+  }
   revalidatePath('/admin'); revalidatePath('/packages'); return { ok: true, message: benefitId ? 'Benefit B2B diperbarui.' : 'Benefit B2B ditambahkan.' };
 }
 
