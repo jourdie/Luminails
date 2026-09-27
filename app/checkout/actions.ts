@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '../../lib/supabase/server';
-import { sendWhatsAppText } from '../../lib/whatsapp';
+import { formatCustomerOrderCreatedNotification, sendWhatsAppText, sendWhatsAppTextTo } from '../../lib/whatsapp';
 
 export type CheckoutActionState = { ok: boolean; message: string };
 
@@ -111,7 +111,10 @@ export async function submitCheckoutOrder(_previous: CheckoutActionState, formDa
   const order = data as unknown as { order_id?: string; total_idr?: number; discount_idr?: number; promotion_code?: string | null } | null;
   if (!order?.order_id) return { ok: false, message: 'Order belum mengembalikan nomor referensi.' };
 
-  await sendWhatsAppText(`Order baru Luminails ${order.order_id}\nTotal: Rp${new Intl.NumberFormat('id-ID').format(Number(order.total_idr ?? 0))}\nStatus: menunggu review\nPromo: ${order.promotion_code ?? '-'}\nCustomer: ${authData.user.email ?? '-'}`);
+  await Promise.allSettled([
+    sendWhatsAppText('Order baru Luminails ' + order.order_id + '\nTotal: Rp' + new Intl.NumberFormat('id-ID').format(Number(order.total_idr ?? 0)) + '\nStatus: menunggu review\nPromo: ' + (order.promotion_code ?? '-') + '\nCustomer: ' + (authData.user.email ?? '-')),
+    sendWhatsAppTextTo(contactPhone, formatCustomerOrderCreatedNotification(order.order_id, Number(order.total_idr ?? 0), order.promotion_code)),
+  ]);
   revalidatePath('/account');
   revalidatePath('/account/orders');
   redirect(`/account/orders?created=${encodeURIComponent(order.order_id)}`);

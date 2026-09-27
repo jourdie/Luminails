@@ -888,3 +888,13 @@ h1 em, h2 em { color: var(--lilac-deep); font-style: italic; }
 .brand-action-buttons form { margin: 0; }
 .brand-action-buttons .button, .brand-action-buttons .text-button { white-space: nowrap; }
 @media (max-width: 900px) { .brand-register-actions { min-width: 0; } }
+
+/* Address CRUD actions keep edit and delete together. */
+.address-card-actions { display: flex; align-items: flex-start; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.address-card-actions details { position: relative; }
+.address-card-actions details[open] { position: absolute; z-index: 4; right: 0; width: min(480px, 80vw); padding: 14px; background: var(--brand-ivory); border: 1px solid var(--brand-line); box-shadow: 0 14px 30px rgba(47,31,36,.12); }
+.address-card-actions details[open] summary { margin-bottom: 12px; }
+.address-card-actions details[open] .address-form { max-height: 70vh; overflow-y: auto; }
+.address-card-actions summary { list-style: none; cursor: pointer; }
+.address-card-actions summary::-webkit-details-marker { display: none; }
+@media (max-width: 560px) { .address-card { align-items: flex-start; flex-direction: column; }.address-card-actions { justify-content: flex-start; }.address-card-actions details[open] { position: static; width: auto; } }

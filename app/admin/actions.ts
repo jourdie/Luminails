@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '../../lib/supabase/server';
+import { formatOrderStatusNotification, sendWhatsAppTextTo } from '../../lib/whatsapp';
 
 export type AdminActionState = { ok: boolean; message: string };
 
@@ -781,10 +782,25 @@ export async function updateOrderTracking(previous: AdminActionState, formData: 
   if (!access.ok) return access;
   const { error } = await (access.supabase as any).rpc('set_order_tracking', { p_order_id: orderId, p_provider: provider, p_tracking_number: trackingNumber, p_tracking_url: trackingUrl, p_status: status });
   if (error) return { ok: false, message: 'Tracking belum tersimpan. Pastikan shipment order sudah dibuat.' };
+  const { data: order } = await (access.supabase as any).from('commerce_orders').select('id, customer_id, contact_phone, status, payment_status, fulfillment_status, total_idr').eq('id', orderId).maybeSingle();
+  let whatsappMessage = '';
+  if (order?.customer_id) {
+    const [{ data: profile }, { data: shipment }] = await Promise.all([
+      (access.supabase as any).from('customer_profiles').select('business_name, whatsapp, phone').eq('id', order.customer_id).maybeSingle(),
+      (access.supabase as any).from('commerce_shipments').select('provider_code, tracking_number, tracking_url, status').eq('order_id', orderId).maybeSingle(),
+    ]);
+    const recipient = order.contact_phone || profile?.whatsapp || profile?.phone;
+    if (recipient) {
+      const notification = await sendWhatsAppTextTo(recipient, formatOrderStatusNotification(order, shipment ?? undefined));
+      whatsappMessage = notification.ok ? ' WhatsApp customer terkirim.' : notification.skipped ? ' WhatsApp belum dikirim: nomor/config belum tersedia.' : ' Tracking tersimpan, tetapi WhatsApp customer gagal dikirim.';
+    } else {
+      whatsappMessage = ' WhatsApp belum dikirim karena nomor customer belum tersedia.';
+    }
+  }
   revalidatePath('/admin');
-  return { ok: true, message: 'Tracking order berhasil diperbarui.' };
+  revalidatePath('/account/orders');
+  return { ok: true, message: 'Tracking order berhasil diperbarui.' + whatsappMessage };
 }
-
 export async function savePackageType(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
   const id = String(formData.get('package_type_id') ?? '').trim();
   const name = String(formData.get('name') ?? '').trim();

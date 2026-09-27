@@ -4,7 +4,7 @@ type WhatsAppConfig = {
   apiVersion: string;
   accessToken: string;
   phoneNumberId: string;
-  adminTo: string;
+  adminTo: string | null;
 };
 
 export type OrderWebhookRecord = {
@@ -32,8 +32,8 @@ function getConfig(): WhatsAppConfig | null {
   const accessToken = process.env.WHATSAPP_CLOUD_API_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID;
   const adminTo = process.env.WHATSAPP_ADMIN_TO;
-  if (!accessToken || !phoneNumberId || !adminTo) return null;
-  return { apiVersion: process.env.WHATSAPP_CLOUD_API_VERSION || 'v23.0', accessToken, phoneNumberId, adminTo: adminTo.replace(/\D/g, '') };
+  if (!accessToken || !phoneNumberId) return null;
+  return { apiVersion: process.env.WHATSAPP_CLOUD_API_VERSION || 'v23.0', accessToken, phoneNumberId, adminTo: adminTo ? adminTo.replace(/\D/g, '') : null };
 }
 
 function formatMoney(value: number) {
@@ -75,15 +75,31 @@ export async function sendOrderNotification(order: OrderWebhookRecord) {
   return sendWhatsAppText(formatOrderNotification(order, items));
 }
 
+export function formatCustomerOrderCreatedNotification(orderId: string, totalIdr: number, promotionCode?: string | null) {
+  return ['Order Luminails berhasil dibuat.', 'Nomor order: ' + orderId, 'Total: ' + formatMoney(totalIdr), 'Status: menunggu review', 'Promo: ' + (promotionCode ?? '-'), '', 'Update pembayaran dan pengiriman akan dikirim ke nomor WhatsApp ini.'].join('\n');
+}
+
+export function formatOrderStatusNotification(order: OrderWebhookRecord, shipment?: { provider_code?: string | null; tracking_number?: string | null; tracking_url?: string | null; status?: string | null }) {
+  return ['Update order Luminails', 'Nomor order: ' + order.id, 'Status order: ' + (order.status ?? '-'), 'Pembayaran: ' + (order.payment_status ?? '-'), 'Fulfillment: ' + (order.fulfillment_status ?? '-'), 'Kurir: ' + (shipment?.provider_code ?? '-'), 'Nomor resi: ' + (shipment?.tracking_number ?? '-'), shipment?.tracking_url ? 'Tracking: ' + shipment.tracking_url : 'Tracking URL: menyusul'].join('\n');
+}
+
+export async function sendWhatsAppTextTo(recipient: string, body: string) {
+  const config = getConfig();
+  if (!config) return { ok: false as const, skipped: true, message: 'WhatsApp Cloud API belum dikonfigurasi.' };
+  const to = recipient.replace(/\D/g, '');
+  if (to.length < 8 || to.length > 15) return { ok: false as const, skipped: true, message: 'Nomor WhatsApp customer belum valid.' };
+  const response = await fetch('https://graph.facebook.com/' + config.apiVersion + '/' + config.phoneNumberId + '/messages', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + config.accessToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'text', text: { preview_url: false, body } }),
+  });
+  if (!response.ok) { console.error('WhatsApp Cloud API error', response.status, await response.text()); return { ok: false as const, skipped: false, message: 'WhatsApp notification gagal dikirim.' }; }
+  return { ok: true as const, skipped: false, message: 'WhatsApp notification terkirim.' };
+}
+
 export async function sendWhatsAppText(body: string) {
   const config = getConfig();
   if (!config) return { ok: false as const, skipped: true, message: 'WhatsApp Cloud API belum dikonfigurasi.' };
   if (!config.adminTo) return { ok: false as const, skipped: true, message: 'WHATSAPP_ADMIN_TO belum valid.' };
-  const response = await fetch(`https://graph.facebook.com/${config.apiVersion}/${config.phoneNumberId}/messages`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${config.accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to: config.adminTo, type: 'text', text: { preview_url: false, body } }),
-  });
-  if (!response.ok) { console.error('WhatsApp Cloud API error', response.status, await response.text()); return { ok: false as const, skipped: false, message: 'WhatsApp notification gagal dikirim.' }; }
-  return { ok: true as const, skipped: false, message: 'WhatsApp notification terkirim.' };
+  return sendWhatsAppTextTo(config.adminTo, body);
 }

@@ -1,6 +1,7 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useEffect, useActionState, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { BrandPackage } from '../lib/packages';
 import { submitCheckoutOrder, type CheckoutActionState } from '../app/checkout/actions';
 import { saveAddress, type AddressActionState } from '../app/account/addresses/actions';
@@ -13,6 +14,8 @@ const initialState: CheckoutActionState = { ok: false, message: '' };
 export function CheckoutForm({ item, quantity, notes, selectedSkus, selectedBenefits, addresses, points, pendingPoints, rewards, contactPhone }: { item: BrandPackage; quantity: number; notes: string; selectedSkus: Array<{ skuId: string; quantity: number }>; selectedBenefits: SelectedBenefit[]; addresses: Address[]; points: number; pendingPoints: number; rewards: Reward[]; contactPhone: string }) {
   const [state, formAction, pending] = useActionState(submitCheckoutOrder, initialState);
   const [addressState, addressAction, addressPending] = useActionState<AddressActionState, FormData>(saveAddress, { ok: false, message: '' });
+  const router = useRouter();
+  useEffect(() => { if (addressState.ok) router.refresh(); }, [addressState, router]);
   const [shippingMethod, setShippingMethod] = useState('paxel_factory');
   const [rewardSku, setRewardSku] = useState('');
   const [rewardQuantity, setRewardQuantity] = useState(1);
