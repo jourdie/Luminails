@@ -898,3 +898,27 @@ h1 em, h2 em { color: var(--lilac-deep); font-style: italic; }
 .address-card-actions summary { list-style: none; cursor: pointer; }
 .address-card-actions summary::-webkit-details-marker { display: none; }
 @media (max-width: 560px) { .address-card { align-items: flex-start; flex-direction: column; }.address-card-actions { justify-content: flex-start; }.address-card-actions details[open] { position: static; width: auto; } }
+
+
+/* Brand table and admin navigation fixes */
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.admin-table-scroll{overflow-x:auto}
+.admin-table-search-label{display:grid;gap:5px;min-width:min(100%,320px);color:var(--muted);font-size:9px}
+.brand-table{min-width:1060px;border-top:1px solid var(--line)}
+.brand-table-head,.brand-table-row{display:grid;grid-template-columns:minmax(130px,1.1fr) minmax(130px,1fr) minmax(160px,1.25fr) 100px 80px 105px 190px;gap:12px;align-items:center}
+.brand-table-head{padding:11px 12px;background:var(--paper-deep);color:var(--muted);font-size:8px;letter-spacing:.09em;text-transform:uppercase}
+.brand-table-row{min-width:1060px;padding:12px;border-top:1px solid var(--line);background:transparent}
+.brand-table-row:nth-child(even){background:rgba(52,35,41,.025)}
+.brand-table-edit-form{display:contents}
+.brand-table-row label{display:block;min-width:0}
+.brand-table-row input:not([type=checkbox]),.brand-table-row select{box-sizing:border-box;width:100%;min-height:36px;padding:8px 9px;border:1px solid var(--line);background:var(--paper);color:var(--ink);font:inherit;font-size:10px}
+.brand-table-row input:focus-visible,.brand-table-row select:focus-visible{outline:2px solid var(--coral);outline-offset:2px}
+.brand-status-cell{display:flex;align-items:center;gap:7px;min-height:36px}.brand-status-cell input{accent-color:var(--lilac-deep)}
+.brand-action-buttons{display:flex;align-items:center;justify-content:flex-start;gap:8px;flex-wrap:wrap;min-width:0}
+.brand-action-buttons form{margin:0}
+.brand-action-buttons small{flex-basis:100%;overflow-wrap:anywhere}
+.brand-action-buttons .button,.brand-action-buttons .text-button{white-space:nowrap}
+.admin-pagination{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding-top:16px;color:var(--muted);font-size:10px}
+.admin-pagination>div{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.admin-pagination .button{padding:9px 13px}
+@media(max-width:900px){.brand-table{min-width:980px}}
