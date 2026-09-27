@@ -881,3 +881,10 @@ h1 em, h2 em { color: var(--lilac-deep); font-style: italic; }
   .admin-sidebar { position: sticky; top: 0; z-index: 10; }
   .package-type-head, .package-type-row { min-width: 700px; }
 }
+
+/* Brand actions stay together so save and delete are easy to compare. */
+.brand-register-actions { display: grid; align-content: end; gap: 8px; min-width: 170px; }
+.brand-action-buttons { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.brand-action-buttons form { margin: 0; }
+.brand-action-buttons .button, .brand-action-buttons .text-button { white-space: nowrap; }
+@media (max-width: 900px) { .brand-register-actions { min-width: 0; } }
