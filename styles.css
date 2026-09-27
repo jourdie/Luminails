@@ -984,3 +984,21 @@ h1 em, h2 em { color: var(--lilac-deep); font-style: italic; }
 .brand-action-buttons .danger-button { padding: 9px 12px; border: 1px solid var(--coral); border-radius: 999px; background: transparent; color: var(--coral) !important; cursor: pointer; }
 .brand-action-buttons .danger-button:hover { background: var(--coral); color: var(--paper) !important; }
 
+/* Loyalty detail tables and filter controls */
+.customer-detail-tabs button{border:1px solid var(--line,#d9cbc4);background:transparent;border-radius:999px;padding:9px 13px;color:inherit;font:inherit;font-size:10px;cursor:pointer}
+.customer-detail-tabs button.is-active{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.customer-detail-table-wrap{overflow-x:auto}
+.customer-detail-table{min-width:760px}
+.customer-detail-table .admin-data-head,.customer-detail-table .admin-data-row{grid-template-columns:1.25fr 1fr 1.2fr .8fr 1fr}
+.customer-detail-table .admin-data-row>span{display:flex;flex-direction:column;gap:3px;min-width:0}
+.admin-crud-record-actions{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-top:10px}
+.admin-crud-record-actions form{display:flex;align-items:center;gap:8px;margin:0}
+.ledger-controls{align-items:end}
+.ledger-controls>label{display:grid;gap:5px;min-width:130px;color:var(--muted);font-size:9px}
+.ledger-controls .admin-table-search-label{flex:1 1 260px}
+.ledger-controls input,.ledger-controls select{width:100%;min-height:36px;padding:9px;border:1px solid var(--line);background:transparent;color:var(--ink);font:inherit;font-size:10px}
+.ledger-table{min-width:1080px}
+.ledger-table .admin-data-head,.ledger-table .admin-data-row{grid-template-columns:95px 1.25fr .85fr 1.55fr .85fr .9fr 95px 1fr}
+.ledger-table .admin-data-row>span{display:flex;flex-direction:column;gap:3px;min-width:0}
+@media(max-width:800px){.customer-detail-table{min-width:700px}.ledger-table{min-width:920px}}
+
