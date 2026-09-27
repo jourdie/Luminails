@@ -922,3 +922,53 @@ h1 em, h2 em { color: var(--lilac-deep); font-style: italic; }
 .admin-pagination>div{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .admin-pagination .button{padding:9px 13px}
 @media(max-width:900px){.brand-table{min-width:980px}}
+
+.promotion-table-panel { overflow: hidden; }
+.promotion-table { overflow-x: auto; }
+.promotion-table-head, .promotion-table-row { grid-template-columns: minmax(170px, 1.5fr) minmax(120px, 1fr) minmax(110px, .9fr) minmax(100px, .8fr) minmax(110px, .9fr) minmax(100px, .8fr); min-width: 780px; }
+.promotion-table-record { border-bottom: 1px solid var(--line); }
+.promotion-table-record > summary { list-style: none; cursor: pointer; }
+.promotion-table-record > summary::-webkit-details-marker { display: none; }
+.promotion-table-row { display: grid; gap: 14px; align-items: center; padding: 14px 0; text-align: left; }
+.promotion-table-row > span { display: flex; flex-direction: column; gap: 3px; font-size: 10px; }
+.promotion-table-row > span small { color: var(--muted); font-size: 9px; }
+.promotion-row-action { color: var(--plum-deep); font-weight: 700; }
+.promotion-table-record[open] > summary { background: rgba(180, 88, 105, .06); }
+.promotion-table-detail { padding: 18px; background: var(--paper); border: 1px solid var(--line); border-top: 0; }
+.promotion-table-detail .promotion-form { border-top: 0; padding-top: 0; }
+.promotion-table-detail .promotion-delete-form { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+@media (max-width: 800px) {
+  .promotion-table-head { display: none; }
+  .promotion-table-row { grid-template-columns: 1fr 1fr; min-width: 0; padding: 14px 4px; }
+  .promotion-table-row > span:nth-child(n+3) { display: none; }
+  .promotion-row-action { grid-column: 2; text-align: right; }
+}
+
+.inventory-table { overflow-x: auto; border-top: 1px solid var(--line); }
+.inventory-table-head, .inventory-table-row { display: grid; grid-template-columns: minmax(170px, 1.5fr) minmax(120px, 1fr) 80px 80px 80px 100px; gap: 14px; align-items: center; min-width: 760px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.inventory-table-head { color: var(--muted); font-size: 8px; letter-spacing: .1em; text-transform: uppercase; }
+.inventory-table-row > span { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 10px; }
+.inventory-table-row > span small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inventory-table-row > span:nth-child(n+3):not(:last-child) { font-variant-numeric: tabular-nums; }
+.inventory-table-row .button { padding: 8px 11px; font-size: 9px; }
+.inventory-table-detail { padding: 18px; background: var(--paper-deep); border-bottom: 1px solid var(--line); }
+.package-rule-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.package-rule-actions form { margin: 0; }
+.package-tier-benefit-row { grid-template-columns: minmax(180px, 1fr) minmax(200px, 1.5fr) minmax(150px, .7fr); }
+.package-tier-benefit-edit { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 16px; margin-top: 8px; background: var(--paper-deep); border: 1px solid var(--line); }
+.package-tier-benefit-edit label { display: grid; gap: 6px; color: var(--muted); font-size: 9px; }
+.package-tier-benefit-edit input:not([type=checkbox]), .package-tier-benefit-edit select { width: 100%; box-sizing: border-box; padding: 9px; border: 1px solid var(--line); background: transparent; color: var(--ink); font: inherit; font-size: 10px; }
+.package-tier-benefit-edit .admin-crud-wide { grid-column: 1 / -1; }
+@media (max-width: 800px) {
+  .inventory-table-head { display: none; }
+  .inventory-table-row { grid-template-columns: 1fr 1fr; min-width: 0; gap: 10px; }
+  .inventory-table-row > span:nth-child(n+3):not(:last-child) { display: none; }
+  .inventory-table-row > span:last-child { justify-self: end; }
+  .package-tier-benefit-row { grid-template-columns: 1fr; }
+  .package-tier-benefit-edit { grid-template-columns: 1fr; }
+  .package-tier-benefit-edit .admin-crud-wide { grid-column: auto; }
+}
+
+.brand-action-buttons .danger-button { padding: 9px 12px; border: 1px solid var(--coral); border-radius: 999px; background: transparent; color: var(--coral) !important; cursor: pointer; }
+.brand-action-buttons .danger-button:hover { background: var(--coral); color: var(--paper) !important; }
+

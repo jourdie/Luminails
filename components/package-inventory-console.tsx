@@ -209,7 +209,7 @@ function PackageRulesEditor({ packageId, rules, benefits, tierBenefits, customer
       <label className="admin-crud-wide">SKU yang boleh dipilih customer <div className="package-allowed-grid">{activeSkus.map((sku) => <label key={sku.id} className="admin-check"><input name="allowed_sku_ids" value={sku.id} type="checkbox" disabled={!canEdit} /><span><strong>{sku.sku}</strong><small>{sku.name}</small></span></label>)}</div><small className="field-help">Customer akan memilih SKU dari whitelist ini saat checkout. Jumlah pilihan mengikuti jumlah benefit.</small></label>
       <div className="admin-crud-record-foot"><span className={benefitState.message ? (benefitState.ok ? 'action-success' : 'action-error') : 'admin-form-note'}>{benefitState.message || 'Benefit B2B tampil sesuai pricing tier customer.'}</span><button className="button button-outline" type="submit" disabled={!canEdit || benefitPending}>{benefitPending ? '...' : 'Tambah benefit tier'}</button></div>
     </form>
-    {tierBenefits.length > 0 && <div className="admin-data-table package-rule-table" role="table" aria-label="Benefit B2B package"><div className="admin-data-head package-rule-head" role="row"><span>Tier / benefit</span><span>SKU yang boleh dipilih</span><span>Aksi</span></div>{tierBenefits.map((benefit) => <PackageTierBenefitRow key={benefit.id} benefit={benefit} canEdit={canEdit} tierName={pricingTierName(benefit.pricing_tier_id)} skuNames={(benefit.allowed_sku_ids ?? []).map(skuName).join(', ') || 'Belum ada SKU'} />)}</div>}
+    {tierBenefits.length > 0 && <div className="admin-data-table package-rule-table" role="table" aria-label="Benefit B2B package"><div className="admin-data-head package-rule-head" role="row"><span>Tier / benefit</span><span>SKU yang boleh dipilih</span><span>Aksi</span></div>{tierBenefits.map((benefit) => <PackageTierBenefitRow key={benefit.id} benefit={benefit} canEdit={canEdit} tierName={pricingTierName(benefit.pricing_tier_id)} skuNames={(benefit.allowed_sku_ids ?? []).map(skuName).join(', ') || 'Belum ada SKU'} pricingTiers={activePricingTiers} skus={activeSkus} />)}</div>}
     {benefits.length > 0 && <p className="field-help">Benefit lama berbasis loyalty tier masih tersimpan untuk kompatibilitas, tetapi benefit baru gunakan B2B Tier di atas.</p>}
   </div>;
 }
@@ -219,9 +219,32 @@ function PackageEligibilityRow({ rule, canEdit, tierName, brandName, skuName }: 
   return <div className="admin-data-row package-rule-row" role="row"><div><strong>{tierName} · {brandName} · {skuName}</strong></div><div><small>Minimal {rule.minimum_quantity} package · order {formatAdminIdr(rule.minimum_order_value_idr)}</small></div><form action={action} onSubmit={(event) => { if (!window.confirm('Hapus rule eligibility ini?')) event.preventDefault(); }}><input type="hidden" name="eligibility_id" value={rule.id} /><button className="text-button danger-button" type="submit" disabled={!canEdit || pending}>{pending ? '...' : 'Hapus rule'}</button>{state.message && <small>{state.message}</small>}</form></div>;
 }
 
-function PackageTierBenefitRow({ benefit, canEdit, tierName, skuNames }: { benefit: AdminPackageTierBenefit; canEdit: boolean; tierName: string; skuNames: string }) {
-  const [state, action, pending] = useActionState(deletePackageTierBenefit, initialState);
-  return <div className="admin-data-row package-rule-row" role="row"><div><strong>{tierName} ? {benefit.quantity} item gratis</strong><small>{benefit.label || 'Free items'}</small></div><div><small>{skuNames}</small></div><form action={action} onSubmit={(event) => { if (!window.confirm('Hapus benefit B2B ini?')) event.preventDefault(); }}><input type="hidden" name="benefit_id" value={benefit.id} /><button className="text-button danger-button" type="submit" disabled={!canEdit || pending}>{pending ? '...' : 'Hapus benefit'}</button>{state.message && <small>{state.message}</small>}</form></div>;
+function PackageTierBenefitRow({ benefit, canEdit, tierName, skuNames, pricingTiers, skus }: { benefit: AdminPackageTierBenefit; canEdit: boolean; tierName: string; skuNames: string; pricingTiers: AdminPricingTier[]; skus: AdminSku[] }) {
+  const [state, action, pending] = useActionState(savePackageTierBenefit, initialState);
+  const [deleteState, deleteAction, deletePending] = useActionState(deletePackageTierBenefit, initialState);
+  const [editing, setEditing] = useState(false);
+  const allowed = new Set(benefit.allowed_sku_ids ?? []);
+  return <div className="admin-data-row package-rule-row package-tier-benefit-row" role="row">
+    <div><strong>{tierName} ? {benefit.quantity} item gratis</strong><small>{benefit.label || 'Free items'}</small></div>
+    <div><small>{skuNames}</small></div>
+    <div className="package-rule-actions">
+      <button className="button button-outline" type="button" onClick={() => setEditing((value) => !value)}>{editing ? 'Tutup' : 'Edit'}</button>
+      <form action={deleteAction} onSubmit={(event) => { if (!window.confirm('Hapus benefit B2B ini?')) event.preventDefault(); }}>
+        <input type="hidden" name="benefit_id" value={benefit.id} />
+        <button className="text-button danger-button" type="submit" disabled={!canEdit || deletePending}>{deletePending ? '...' : 'Hapus'}</button>
+      </form>
+      {deleteState.message && <small className={deleteState.ok ? 'action-success' : 'action-error'}>{deleteState.message}</small>}
+    </div>
+    {editing && <form className="package-tier-benefit-edit" action={action}>
+      <input type="hidden" name="benefit_id" value={benefit.id} />
+      <input type="hidden" name="package_id" value={benefit.package_id} />
+      <label>Tier B2B<select name="pricing_tier_id" defaultValue={benefit.pricing_tier_id} disabled={!canEdit}>{pricingTiers.map((tier) => <option key={tier.id} value={tier.id}>{tier.name} ? {tier.code}</option>)}</select></label>
+      <label>Jumlah item gratis<input name="quantity" type="number" min="1" defaultValue={benefit.quantity} disabled={!canEdit} /></label>
+      <label>Label benefit<input name="label" defaultValue={benefit.label ?? ''} disabled={!canEdit} /></label>
+      <label className="admin-crud-wide">SKU yang boleh dipilih customer<div className="package-allowed-grid">{skus.map((sku) => <label key={sku.id} className="admin-check"><input name="allowed_sku_ids" value={sku.id} type="checkbox" defaultChecked={allowed.has(sku.id)} disabled={!canEdit} /><span><strong>{sku.sku}</strong><small>{sku.name}</small></span></label>)}</div></label>
+      <div className="admin-crud-record-foot"><span className={state.message ? (state.ok ? 'action-success' : 'action-error') : 'admin-form-note'}>{state.message || 'Perubahan benefit akan berlaku untuk checkout tier ini.'}</span><button className="button button-dark" type="submit" disabled={!canEdit || pending}>{pending ? 'Menyimpan...' : 'Simpan benefit'}</button></div>
+    </form>}
+  </div>;
 }
 
 function formatAdminIdr(value: number | null | undefined) {
@@ -246,7 +269,7 @@ export function AdminInventoryConsole({ locations, skus, stock, canEdit }: { loc
       </section>
       <section className="admin-panel">
         <div className="panel-heading"><div><p className="eyebrow">Current stock</p><h3>Stock & adjustment</h3></div><span className="notification-count">Movement tercatat otomatis</span></div>
-        {stock.length === 0 ? <p className="admin-empty-copy">Belum ada stock record.</p> : stock.map((item) => <StockRow key={item.id} item={item} canEdit={canEdit} />)}
+        {stock.length === 0 ? <p className="admin-empty-copy">Belum ada stock record.</p> : <div className="inventory-table" role="table" aria-label="Current stock"><div className="inventory-table-head" role="row"><span>SKU / code</span><span>Lokasi</span><span>On hand</span><span>Reserved</span><span>Available</span><span>Aksi</span></div>{stock.map((item) => <StockRow key={item.id} item={item} canEdit={canEdit} />)}</div>}
       </section>
     </div>
   );
@@ -255,20 +278,32 @@ export function AdminInventoryConsole({ locations, skus, stock, canEdit }: { loc
 function StockRow({ item, canEdit }: { item: AdminInventoryStock; canEdit: boolean }) {
   const [state, action, pending] = useActionState(updateInventoryStock, initialState);
   const [deleteState, deleteAction, deletePending] = useActionState(deleteInventoryStock, initialState);
-  return (
-    <div className="admin-crud-record">
+  const [expanded, setExpanded] = useState(false);
+  const available = Math.max(0, item.on_hand_quantity - item.reserved_quantity);
+  return <div className="inventory-table-record">
+    <div className="inventory-table-row">
+      <span><strong>{item.sku_name}</strong><small>{item.sku_code}</small></span>
+      <span>{item.location_name}</span>
+      <span>{item.on_hand_quantity}</span>
+      <span>{item.reserved_quantity}</span>
+      <span>{available}</span>
+      <span><button type="button" className="button button-outline" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Tutup' : 'Edit'}</button></span>
+    </div>
+    {expanded && <div className="inventory-table-detail">
       <form className="admin-crud-form admin-crud-inline-form" action={action}>
         <input type="hidden" name="stock_id" value={item.id} />
-        <div className="admin-record-title"><strong>{item.sku_name}</strong><small>{item.sku_code} · {item.location_name}</small></div>
         <label>On hand<input name="on_hand_quantity" type="number" min="0" defaultValue={item.on_hand_quantity} disabled={!canEdit} /></label>
         <label>Reserved<input name="reserved_quantity" type="number" min="0" defaultValue={item.reserved_quantity} disabled={!canEdit} /></label>
         <label>Reorder point<input name="reorder_point" type="number" min="0" defaultValue={item.reorder_point} disabled={!canEdit} /></label>
         <label className="admin-crud-wide">Alasan adjustment<input name="reason" placeholder="Receiving batch September" disabled={!canEdit} required /></label>
         <div className="admin-crud-record-foot"><span>{state.message || deleteState.message}</span><button className="button button-dark" type="submit" disabled={!canEdit || pending}>{pending ? '...' : 'Simpan adjustment'}</button></div>
       </form>
-      <form action={deleteAction} className="admin-crud-delete" onSubmit={(event) => { if (!window.confirm(`Hapus stock ${item.sku_name} di ${item.location_name}? Riwayat movement yang terkait dapat mencegah penghapusan.`)) event.preventDefault(); }}><input type="hidden" name="stock_id" value={item.id} /><button className="text-button danger-button" type="submit" disabled={!canEdit || deletePending}>{deletePending ? '...' : 'Hapus stock row'}</button></form>
-    </div>
-  );
+      <form action={deleteAction} className="admin-crud-delete" onSubmit={(event) => { if (!window.confirm('Hapus stock ' + item.sku_name + ' di ' + item.location_name + '? Riwayat movement yang terkait dapat mencegah penghapusan.')) event.preventDefault(); }}>
+        <input type="hidden" name="stock_id" value={item.id} />
+        <button className="text-button danger-button" type="submit" disabled={!canEdit || deletePending}>{deletePending ? '...' : 'Hapus stock row'}</button>
+      </form>
+    </div>}
+  </div>;
 }
 
 export function AdminWhatsappSettings({ settings, canEdit }: { settings: AdminWhatsappSettings | null; canEdit: boolean }) {
