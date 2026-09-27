@@ -9,16 +9,9 @@ import { formatIDR } from '../lib/packages';
 import { SiteNavigation } from './site-navigation';
 import type { AccountTierSummary } from '../lib/account-server';
 
-const segments = [
-  { value: 'all', label: 'All packages' },
-  { value: 'home-studio', label: 'Home studio' },
-  { value: 'salon', label: 'Salon scale' },
-  { value: 'restock', label: 'Restock' },
-] as const;
-
 export function BrandExplorer({ packages, promotions, tierSummary }: { packages: BrandPackage[]; promotions: StorefrontPromotion[]; tierSummary?: AccountTierSummary | null }) {
   const [brand, setBrand] = useState('all');
-  const [segment, setSegment] = useState<(typeof segments)[number]['value']>('all');
+  const [segment, setSegment] = useState('all');
 
   useEffect(() => {
     let frame = 0;
@@ -37,6 +30,7 @@ export function BrandExplorer({ packages, promotions, tierSummary }: { packages:
   }, []);
 
   const brands = useMemo(() => ['all', ...Array.from(new Set(packages.map((item) => item.brandSlug)))], [packages]);
+  const segments = useMemo(() => [{ value: 'all', label: 'All packages' }, ...Array.from(new Set(packages.map((item) => item.audience))).map((value) => ({ value, label: value.split('-').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') }))], [packages]);
   const visiblePackages = packages.filter((item) => (brand === 'all' || item.brandSlug === brand) && (segment === 'all' || item.audience === segment));
 
   return (

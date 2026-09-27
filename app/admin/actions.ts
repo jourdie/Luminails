@@ -142,6 +142,14 @@ function packageStoragePath(url: string) {
   const index = url.indexOf(marker);
   return index >= 0 ? decodeURIComponent(url.slice(index + marker.length)) : null;
 }
+async function rollbackCreatedPackage(supabase: Awaited<ReturnType<typeof createClient>>, packageId: string) {
+  const { data: images } = await supabase.from('commerce_package_images').select('image_url').eq('package_id', packageId);
+  const { error } = await supabase.from('commerce_packages').delete().eq('id', packageId);
+  if (error) return false;
+  const paths = (images ?? []).map((image) => packageStoragePath(image.image_url)).filter((path): path is string => Boolean(path));
+  if (paths.length) await supabase.storage.from('package-images').remove(paths);
+  return true;
+}
 export async function createCatalogSku(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
   let productId = String(formData.get('product_id') ?? '').trim();
   const brandId = String(formData.get('brand_id') ?? '').trim();
@@ -474,19 +482,31 @@ export async function deleteBrand(previous: AdminActionState, formData: FormData
   if (error) return { ok: false, message: 'Brand belum dapat dihapus karena masih memiliki dependency.' };
   revalidatePath('/admin'); revalidatePath('/brands'); revalidatePath('/packages');
   return { ok: true, message: `Brand ${brand.name} berhasil dihapus.` };
-}async function syncPackagePrices(supabase: Awaited<ReturnType<typeof createClient>>, packageId: string, formData: FormData) {
+}function parsePackageTierPrices(tiers: { id: string; code: string }[], formData: FormData) {
+  const basePrice = formData.get('price_idr');
+  const prices: Array<{ tierId: string; tierCode: string; value: number }> = [];
+  for (const [index, tier] of tiers.entries()) {
+    const raw = formData.get('package_price_' + tier.id);
+    const value = raw !== null && String(raw).trim() !== '' ? moneyInteger(raw) : index === 0 ? moneyInteger(basePrice) : null;
+    if (value === null || value < 0) return { error: 'Harga bundling untuk tier ' + tier.code + ' wajib diisi dengan angka yang valid.' } as const;
+    prices.push({ tierId: tier.id, tierCode: tier.code, value });
+  }
+  return { prices } as const;
+}
+
+async function syncPackagePrices(supabase: Awaited<ReturnType<typeof createClient>>, packageId: string, formData: FormData) {
   const { data: tiers, error: tierError } = await supabase.from('pricing_tiers').select('id, code').eq('is_active', true).order('sort_order');
   if (tierError) return 'B2B Tier belum dapat dibaca.';
   if (!tiers?.length) return 'Belum ada B2B Tier aktif. Buat minimal satu tier terlebih dahulu.';
+  const parsed = parsePackageTierPrices(tiers, formData);
+  if ('error' in parsed) return parsed.error;
   const now = new Date().toISOString();
-  for (const [index, tier] of (tiers ?? []).entries()) {
-    const raw = formData.get('package_price_' + tier.id);
-    const basePrice = formData.get('price_idr');
-    const value = raw !== null ? moneyInteger(raw) : index === 0 ? moneyInteger(basePrice) : null;
-    if (value === null || value < 0) return 'Harga bundling untuk tier ' + tier.code + ' wajib diisi dengan angka yang valid.';
+  for (const price of parsed.prices) {
+    const tier = tiers.find((entry) => entry.id === price.tierId);
+    if (!tier) return 'B2B Tier tidak ditemukan.';
     const { error: archiveError } = await supabase.from('commerce_package_prices').update({ is_active: false, effective_until: now }).eq('package_id', packageId).eq('pricing_tier_id', tier.id).eq('is_active', true);
     if (archiveError) return 'Harga tier lama belum dapat diarsipkan.';
-    const { error: insertError } = await supabase.from('commerce_package_prices').insert({ package_id: packageId, pricing_tier_id: tier.id, unit_price_idr: value, effective_from: now, is_active: true });
+    const { error: insertError } = await supabase.from('commerce_package_prices').insert({ package_id: packageId, pricing_tier_id: tier.id, unit_price_idr: price.value, effective_from: now, is_active: true });
     if (insertError) return 'Harga package untuk tier ' + tier.code + ' belum tersimpan.';
   }
   return null;
@@ -626,22 +646,26 @@ export async function createPackage(previous: AdminActionState, formData: FormDa
   if (!access.ok) return access;
   const { data: createdPackage, error } = await (access.supabase as any).from('commerce_packages').insert(values.data).select('id, brand_id, status, selection_mode').single();
   if (error || !createdPackage) return { ok: false, message: 'Package belum dibuat. Pastikan brand, slug, dan model isi benar.' };
+  const rollback = async (message: string): Promise<AdminActionState> => {
+    await rollbackCreatedPackage(access.supabase, createdPackage.id);
+    return { ok: false, message };
+  };
   const priceError = await syncPackagePrices(access.supabase, createdPackage.id, formData);
-  if (priceError) return { ok: false, message: priceError };
+  if (priceError) return rollback(priceError);
   const imageError = await addPackageImages(access.supabase, createdPackage.id, packageImageFiles);
-  if (imageError) return { ok: false, message: imageError };
+  if (imageError) return rollback(imageError);
   if (values.data.selection_mode === 'free_pick') {
     const allowedError = await syncPackageAllowedSkus(access.supabase, createdPackage.id, allowedSkuIds);
-    if (allowedError) return { ok: false, message: allowedError };
+    if (allowedError) return rollback(allowedError);
   } else if (skuIds.length > 0) {
     const { data: selectedSkus, error: skuError } = await access.supabase.from('catalog_skus').select('id, name').in('id', skuIds).eq('is_active', true);
-    if (skuError || !selectedSkus || selectedSkus.length !== skuIds.length) return { ok: false, message: 'Sebagian SKU fixed package tidak ditemukan atau belum aktif.' };
+    if (skuError || !selectedSkus || selectedSkus.length !== skuIds.length) return rollback('Sebagian SKU fixed package tidak ditemukan atau belum aktif.');
     const { error: itemError } = await access.supabase.from('commerce_package_items').insert(selectedSkus.map((sku) => { const item = fixedItems.find((entry) => entry.skuId === sku.id); return { package_id: createdPackage.id, sku_id: sku.id, item_name_snapshot: sku.name, quantity: item?.quantity ?? 1, sort_order: item?.sortOrder ?? 0 }; }));
-    if (itemError) return { ok: false, message: 'Package dibuat, tetapi isi fixed SKU dan quantity belum tersimpan.' };
+    if (itemError) return rollback('Isi fixed SKU dan quantity belum tersimpan, package dibatalkan.');
   }
   if (createdPackage.status === 'published') {
     const { error: brandError } = await access.supabase.from('catalog_brands').update({ is_published: true }).eq('id', createdPackage.brand_id);
-    if (brandError) return { ok: false, message: 'Package dibuat, tetapi brand belum bisa ditampilkan ke customer.' };
+    if (brandError) return rollback('Brand belum bisa ditampilkan ke customer, package dibatalkan.');
   }
   revalidatePath('/admin'); revalidatePath('/packages'); revalidatePath('/brands');
   return { ok: true, message: 'Package berhasil dibuat.' };

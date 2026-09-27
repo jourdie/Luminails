@@ -32,10 +32,38 @@ export function AdminPackageConsole({ brands, packages, packageItems, packageAll
   const [packageTypeId, setPackageTypeId] = useState(packageTypes.find((type) => type.is_active)?.id ?? '');
   const autoSlug = packageTitle.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
   const [packageQuery, setPackageQuery] = useState('');
-  const [packageSort, setPackageSort] = useState<'newest' | 'name' | 'price'>('newest');
+  const [packageBrand, setPackageBrand] = useState('all');
+  const [packageTier, setPackageTier] = useState('all');
+  const [packageStatus, setPackageStatus] = useState('all');
+  const [packageWindow, setPackageWindow] = useState('all');
+  const [packageSort, setPackageSort] = useState<'newest' | 'name' | 'start' | 'end' | 'usage' | 'minimum'>('newest');
   const [packagePage, setPackagePage] = useState(0);
   const [packagePageSize, setPackagePageSize] = useState(10);
-  const visiblePackages = useMemo(() => packages.filter((item) => (item.title + ' ' + item.slug + ' ' + item.brand_name).toLowerCase().includes(packageQuery.trim().toLowerCase())).sort((a, b) => packageSort === 'name' ? a.title.localeCompare(b.title) : packageSort === 'price' ? a.price_idr - b.price_idr : b.slug.localeCompare(a.slug)), [packages, packageQuery, packageSort]);
+  const packageNow = Date.now();
+  const visiblePackages = useMemo(() => packages.filter((item) => {
+    const relatedItems = packageItems.filter((row) => row.package_id === item.id);
+    const relatedAllowed = packageAllowedSkus.filter((row) => row.package_id === item.id);
+    const relatedSkuText = [...relatedItems.map((row) => row.item_name_snapshot), ...relatedAllowed.map((row) => skus.find((sku) => sku.id === row.sku_id)?.name ?? row.sku_id)].join(' ');
+    const searchText = [item.title, item.slug, item.brand_name, relatedSkuText].filter(Boolean).join(' ').toLowerCase();
+    const starts = item.starts_at ? new Date(item.starts_at).getTime() : -Infinity;
+    const ends = item.ends_at ? new Date(item.ends_at).getTime() : Infinity;
+    const windowMatch = packageWindow === 'all'
+      || (packageWindow === 'active' && item.status === 'published' && starts <= packageNow && ends > packageNow)
+      || (packageWindow === 'upcoming' && starts > packageNow)
+      || (packageWindow === 'expired' && ends <= packageNow);
+    return searchText.includes(packageQuery.trim().toLowerCase())
+      && (packageBrand === 'all' || item.brand_id === packageBrand)
+      && (packageTier === 'all' || packageEligibility.some((rule) => rule.package_id === item.id && rule.customer_tier_id === packageTier) || packageTierBenefits.some((benefit) => benefit.package_id === item.id && benefit.pricing_tier_id === packageTier))
+      && (packageStatus === 'all' || item.status === packageStatus)
+      && windowMatch;
+  }).sort((a, b) => {
+    if (packageSort === 'name') return a.title.localeCompare(b.title);
+    if (packageSort === 'start') return (b.starts_at ?? '').localeCompare(a.starts_at ?? '');
+    if (packageSort === 'end') return (b.ends_at ?? '9999').localeCompare(a.ends_at ?? '9999');
+    if (packageSort === 'usage') return Number(b.usage_count ?? 0) - Number(a.usage_count ?? 0);
+    if (packageSort === 'minimum') return Number(a.minimum_subtotal_idr ?? 0) - Number(b.minimum_subtotal_idr ?? 0);
+    return b.slug.localeCompare(a.slug);
+  }), [packages, packageItems, packageAllowedSkus, skus, packageEligibility, packageTierBenefits, packageQuery, packageBrand, packageTier, packageStatus, packageWindow, packageSort, packageNow]);
   const packagePageCount = Math.max(1, Math.ceil(visiblePackages.length / packagePageSize));
   const safePackagePage = Math.min(packagePage, packagePageCount - 1);
   const pagedPackages = visiblePackages.slice(safePackagePage * packagePageSize, safePackagePage * packagePageSize + packagePageSize);
@@ -66,8 +94,16 @@ export function AdminPackageConsole({ brands, packages, packageItems, packageAll
       </section>
       <section className="admin-panel">
         <div className="panel-heading"><div><p className="eyebrow">Live catalog records</p><h3>Kelola package dan harga tier</h3></div><span className="notification-count">Harga IDR</span></div>
-       <div className={'admin-table-controls package-list-controls'}><label className={'admin-table-search-label'}>Cari package<input className={'admin-table-search'} value={packageQuery} onChange={(event) => { setPackageQuery(event.target.value); setPackagePage(0); }} placeholder={'Nama, slug, atau brand'} /></label><label>Urutkan<select value={packageSort} onChange={(event) => { setPackageSort(event.target.value as 'newest' | 'name' | 'price'); setPackagePage(0); }}><option value={'newest'}>Terbaru</option><option value={'name'}>Nama A-Z</option><option value={'price'}>Harga termurah</option></select></label><label>Tampilkan<select value={packagePageSize} onChange={(event) => { setPackagePageSize(Number(event.target.value)); setPackagePage(0); }}><option value={10}>10 data</option><option value={20}>20 data</option><option value={30}>30 data</option></select></label></div>
-        <div className="admin-data-table package-summary-table package-summary-head" role="row"><span>Package</span><span>Brand</span><span>Isi</span><span>Status</span><span>Aksi</span></div>
+       <div className={'admin-table-controls package-list-controls'}>
+          <label className={'admin-table-search-label'}>Cari package / SKU<input className={'admin-table-search'} value={packageQuery} onChange={(event) => { setPackageQuery(event.target.value); setPackagePage(0); }} placeholder={'Nama, slug, brand, atau SKU'} /></label>
+          <label>Brand<select value={packageBrand} onChange={(event) => { setPackageBrand(event.target.value); setPackagePage(0); }}><option value={'all'}>Semua brand</option>{brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}</select></label>
+          <label>Tier<select value={packageTier} onChange={(event) => { setPackageTier(event.target.value); setPackagePage(0); }}><option value={'all'}>Semua tier</option>{customerTiers.filter((tier) => tier.is_active).map((tier) => <option key={tier.id} value={tier.id}>{tier.name}</option>)}{activeTiers.map((tier) => <option key={tier.id} value={tier.id}>{tier.name} (B2B)</option>)}</select></label>
+          <label>Status<select value={packageStatus} onChange={(event) => { setPackageStatus(event.target.value); setPackagePage(0); }}><option value={'all'}>Semua status</option><option value={'published'}>Published</option><option value={'draft'}>Draft</option><option value={'archived'}>Archived</option></select></label>
+          <label>Periode<select value={packageWindow} onChange={(event) => { setPackageWindow(event.target.value); setPackagePage(0); }}><option value={'all'}>Semua periode</option><option value={'active'}>Aktif sekarang</option><option value={'upcoming'}>Upcoming</option><option value={'expired'}>Expired</option></select></label>
+          <label>Urutkan<select value={packageSort} onChange={(event) => { setPackageSort(event.target.value as typeof packageSort); setPackagePage(0); }}><option value={'newest'}>Terbaru</option><option value={'name'}>Nama A-Z</option><option value={'start'}>Mulai terbaru</option><option value={'end'}>Berakhir terdekat</option><option value={'usage'}>Usage terbanyak</option><option value={'minimum'}>Minimum order</option></select></label>
+          <label>Tampilkan<select value={packagePageSize} onChange={(event) => { setPackagePageSize(Number(event.target.value)); setPackagePage(0); }}><option value={10}>10 data</option><option value={20}>20 data</option><option value={30}>30 data</option></select></label>
+        </div>
+        <div className="admin-data-table package-summary-table package-summary-head" role="row"><span>Package</span><span>Eligible tier</span><span>Brand / isi</span><span>Min qty</span><span>Price rule</span><span>Benefit</span><span>Mulai</span><span>Berakhir</span><span>Status / usage</span><span>Aksi</span></div>
         {visiblePackages.length === 0 ? <p className="admin-empty-copy">Belum ada package yang cocok dengan pencarian.</p> : pagedPackages.map((item) => <PackageRow key={item.id} item={item} brands={brands} packageItems={packageItems.filter((packageItem) => packageItem.package_id === item.id)} packageAllowedSkus={packageAllowedSkus.filter((allowed) => allowed.package_id === item.id)} packageImages={packageImages.filter((image) => image.package_id === item.id)} packagePrices={packagePrices.filter((price) => price.package_id === item.id)} packageTypes={packageTypes} packageEligibility={packageEligibility.filter((rule) => rule.package_id === item.id)} packageBenefits={packageBenefits.filter((benefit) => benefit.package_id === item.id)} packageTierBenefits={packageTierBenefits.filter((benefit) => benefit.package_id === item.id)} customerTiers={customerTiers} pricingTiers={activeTiers} skus={skus} canEdit={canEdit} />)}
       </section>
       <PackageTypesEditor packageTypes={packageTypes} canEdit={canEdit} />
@@ -100,14 +136,28 @@ function PackageRow({ item, brands, packageItems, packageAllowedSkus, packageIma
   const [expanded, setExpanded] = useState(false);
   const [editSelectionMode, setEditSelectionMode] = useState(item.selection_mode);
   const currentPrice = (tier: AdminPricingTier) => packagePrices.find((price) => price.pricing_tier_id === tier.id)?.unit_price_idr ?? (tier.code === 'STANDARD' ? item.price_idr : undefined);
+  const eligibleTierNames = [...new Set([
+    ...packageEligibility.filter((rule) => rule.customer_tier_id).map((rule) => customerTiers.find((tier) => tier.id === rule.customer_tier_id)?.name),
+    ...packageTierBenefits.map((benefit) => pricingTiers.find((tier) => tier.id === benefit.pricing_tier_id)?.name),
+  ].filter(Boolean))].join(', ') || 'Semua tier';
+  const priceRule = packagePrices.length ? packagePrices.length + ' tier price' : 'Harga standard';
+  const benefitSummary = packageTierBenefits.length
+    ? packageTierBenefits.map((benefit) => (benefit.label || 'Free item') + ' × ' + benefit.quantity).join(', ')
+    : packageBenefits.length ? packageBenefits.map((benefit) => (benefit.notes || 'Benefit') + ' × ' + benefit.quantity).join(', ') : '-';
+  const formatDate = (value?: string | null) => value ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(new Date(value)) : '-';
   return (
     <div className="admin-crud-record">
       <div className="admin-data-table package-summary-table" role="row">
         <div><strong>{item.title}</strong><small>{item.slug}</small></div>
-        <div><span>Brand</span><strong>{item.brand_name}</strong></div>
-        <div><span>Isi</span><strong>{item.selection_mode === 'free_pick' ? 'Free pick' : 'Fixed'}</strong></div>
-        <div><span>Status</span><strong>{item.status}</strong><small>{packageVisibility(item)}</small></div>
-        <div><button type="button" className="button button-outline" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Tutup detail' : 'Buka detail'}</button></div>
+        <div>{eligibleTierNames}</div>
+        <div><strong>{item.brand_name}</strong><small>{item.selection_mode === 'free_pick' ? 'Free pick' : 'Fixed'}</small></div>
+        <div>{item.minimum_quantity ?? 1}{item.selection_capacity ? <small>max {item.selection_capacity}</small> : null}</div>
+        <div>{priceRule}<small>{formatAdminIdr(item.price_idr)}</small></div>
+        <div>{benefitSummary}</div>
+        <div>{formatDate(item.starts_at)}</div>
+        <div>{formatDate(item.ends_at)}</div>
+        <div><strong>{item.status}</strong><small>{packageVisibility(item)} · {item.usage_count ?? 0} usage</small></div>
+         <div className="package-summary-actions"><button type="button" className="button button-outline" onClick={() => setExpanded((value) => !value)}>{expanded ? 'Tutup detail' : 'Buka detail'}</button><form action={deleteAction} onSubmit={(event) => { if (!window.confirm(`Hapus package ${item.title}? Isi, harga, dan foto package akan ikut terhapus jika tidak dipakai transaksi.`)) event.preventDefault(); }}><input type="hidden" name="package_id" value={item.id} /><button className="text-button danger-button" type="submit" disabled={!canEdit || deletePending}>{deletePending ? 'Menghapus...' : 'Hapus'}</button></form></div>
       </div>
       {expanded && <div className="package-detail-panel">
       <form className="admin-crud-form admin-crud-row-form" action={action}>
