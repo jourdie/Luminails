@@ -51,10 +51,10 @@ on conflict (sku_id, pricing_tier_id, effective_from) do update set
 -- Development promotions only. Replace codes, dates, values, and eligibility before production.
 insert into public.commerce_promotions (id, code, name, promotion_type, audience_type, discount_type, discount_value, bundle_price_idr, minimum_order_amount_idr, minimum_item_quantity, repeat_order_min_count, voucher_code, usage_limit, usage_limit_per_customer, usage_count, starts_at, ends_at, status, is_stackable, is_active)
 values
-  ('50000000-0000-4000-8000-000000000001', 'WELCOME10', 'Welcome untuk user baru', 'new_user', 'new_user', 'percentage', 10, null, 250000, 0, 0, 'WELCOME10', 500, 1, 38, '2026-09-01T00:00:00Z', '2026-12-31T23:59:59Z', 'active', false, true),
-  ('50000000-0000-4000-8000-000000000002', 'REPEAT5', 'Repeat order studio', 'repeat_order', 'repeat_customer', 'percentage', 5, null, 500000, 0, 2, 'REPEAT5', null, 1, 74, '2026-09-01T00:00:00Z', null, 'active', true, true),
-  ('50000000-0000-4000-8000-000000000003', 'STARTERKIT', 'Studio Starter Bundle', 'bundle', 'all', 'fixed_price', 0, 399000, 0, 3, 0, null, 100, 2, 12, '2026-09-15T00:00:00Z', '2026-10-15T23:59:59Z', 'active', false, true),
-  ('50000000-0000-4000-8000-000000000004', 'NINE9', '9.9 Beauty Week', 'seasonal', 'all', 'fixed_amount', 99000, null, 999000, 0, 0, 'NINE9', 999, 1, 218, '2026-09-09T00:00:00Z', '2026-09-12T23:59:59Z', 'expired', false, false),
+  ('50000000-0000-4000-8000-000000000001', 'WELCOME10', 'Welcome untuk user baru', 'new_user', 'new_user', 'percentage', 10, null, 250000, 0, 0, 'WELCOME10', 500, 1, 0, '2026-09-01T00:00:00Z', '2026-12-31T23:59:59Z', 'active', false, true),
+  ('50000000-0000-4000-8000-000000000002', 'REPEAT5', 'Repeat order studio', 'repeat_order', 'repeat_customer', 'percentage', 5, null, 500000, 0, 2, 'REPEAT5', null, 1, 0, '2026-09-01T00:00:00Z', null, 'active', true, true),
+  ('50000000-0000-4000-8000-000000000003', 'STARTERKIT', 'Studio Starter Bundle', 'bundle', 'all', 'fixed_price', 0, 399000, 0, 3, 0, null, 100, 2, 0, '2026-09-15T00:00:00Z', '2026-10-15T23:59:59Z', 'active', false, true),
+  ('50000000-0000-4000-8000-000000000004', 'NINE9', '9.9 Beauty Week', 'seasonal', 'all', 'fixed_amount', 99000, null, 999000, 0, 0, 'NINE9', 999, 1, 0, '2026-09-09T00:00:00Z', '2026-09-12T23:59:59Z', 'expired', false, false),
   ('50000000-0000-4000-8000-000000000005', 'B2B-VVIP-ALYA', 'Special voucher customer eligible', 'custom_voucher', 'custom_customer', 'percentage', 12, null, 1000000, 0, 0, 'B2B-VVIP-ALYA', 1, 1, 0, '2026-09-22T00:00:00Z', '2026-10-31T23:59:59Z', 'scheduled', false, true)
 on conflict (id) do update set
   name = excluded.name,

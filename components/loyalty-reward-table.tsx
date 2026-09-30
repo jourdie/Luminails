@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useMemo, useState } from 'react';
 import type { AdminDashboard, AdminReward } from '../lib/admin';
 import { archiveReward, deleteReward, saveReward, type LoyaltyActionState } from '../app/admin/loyalty-actions';
-import { rewardCostRatio } from '../lib/loyalty-engine';
+import { recommendRewardPoints, rewardCostRatio } from '../lib/loyalty-engine';
 
 const initial: LoyaltyActionState = { ok: false, message: '' };
 const money = (value: number) => 'Rp' + new Intl.NumberFormat('id-ID').format(Number(value) || 0);
@@ -76,6 +76,8 @@ function RewardEditor({ reward, dashboard, canEdit, ratio, warning, brandName }:
   const dateInput = (value: string | null) => value ? new Date(value).toISOString().slice(0, 16) : '';
   const minimumTier = dashboard.customerTiers.find((tier) => tier.id === reward.minimum_customer_tier_id)?.name ?? 'Semua tier';
   const tierRatios = dashboard.customerTiers.filter((tier) => tier.is_active).map((tier) => `${tier.name}: ${rewardCostRatio(reward.points_cost, dashboard.loyaltySettings?.point_unit_value_idr ?? 10000, reward.hpp_idr, tier.point_multiplier).toFixed(2)}%`).join(' · ');
+  const maxMultiplier = Math.max(1, ...dashboard.customerTiers.filter((tier) => tier.is_active).map((tier) => Number(tier.point_multiplier) || 1));
+  const recommendedPoints = recommendRewardPoints(reward.hpp_idr, dashboard.loyaltySettings?.point_unit_value_idr ?? 10000, dashboard.loyaltySettings?.reward_cost_warning_percent ?? 3, maxMultiplier);
   return <div className="reward-editor-record">
     <div className="admin-data-row reward-summary-row">
       <span><strong>{reward.reward_name ?? reward.sku_name ?? 'Reward'}</strong><small>{reward.description ?? '-'}</small></span>
@@ -98,7 +100,7 @@ function RewardEditor({ reward, dashboard, canEdit, ratio, warning, brandName }:
         <label>SKU<select name="sku_id" defaultValue={reward.sku_id} disabled={!canEdit}>{dashboard.skus.map((sku) => <option key={sku.id} value={sku.id}>{sku.sku} - {sku.name}</option>)}</select></label>
         <label>HPP<input name="hpp_idr" type="number" min="0" defaultValue={reward.hpp_idr} disabled={!canEdit} /></label>
         <label>Harga retail<input name="normal_selling_price_idr" type="number" min="0" defaultValue={reward.normal_selling_price_idr} disabled={!canEdit} /></label>
-        <label>Point cost<input name="points_cost" type="number" min="1" step="1" defaultValue={reward.points_cost} disabled={!canEdit} /></label>
+        <label>Point cost<input name="points_cost" type="number" min="1" step="1" defaultValue={reward.points_cost} disabled={!canEdit} /><small className="field-help">Saran sistem: {recommendedPoints} pts. Tetap bisa di-adjust.</small></label>
         <label>Minimum order<input name="minimum_order_value_idr" type="number" min="0" defaultValue={reward.minimum_order_value_idr} disabled={!canEdit} /></label>
         <label>Max qty<input name="max_redemption_quantity" type="number" min="1" defaultValue={reward.max_redemption_quantity} disabled={!canEdit} /></label>
         <label>Stock (0 = unlimited)<input name="reward_stock" type="number" min="0" defaultValue={reward.reward_stock} disabled={!canEdit} /></label>

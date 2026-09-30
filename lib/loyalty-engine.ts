@@ -37,6 +37,11 @@ export function rewardCostRatio(pointsCost: number, pointUnitValueIdr: number, h
   return (hppIdr / eligibleSpendRequired) * 100;
 }
 
+export function recommendRewardPoints(hppIdr: number, pointUnitValueIdr = 10_000, warningPercent = 3, tierMultiplier = 1) {
+  if (hppIdr <= 0 || pointUnitValueIdr <= 0 || warningPercent <= 0) return 1;
+  return Math.max(1, Math.ceil((hppIdr * Math.max(1, tierMultiplier) * 100) / (pointUnitValueIdr * warningPercent)));
+}
+
 export function calculateRefundReversalPoints(issuedPoints: number, eligibleSpendIdr: number, refundedEligibleIdr: number) {
   if (issuedPoints <= 0 || eligibleSpendIdr <= 0 || refundedEligibleIdr <= 0) return 0;
   return Math.min(issuedPoints, Math.floor(issuedPoints * Math.min(eligibleSpendIdr, refundedEligibleIdr) / eligibleSpendIdr));

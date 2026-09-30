@@ -40,6 +40,12 @@ const errorMessages: Record<string, string> = {
   PACKAGE_BENEFIT_SELECTION_REQUIRED: 'Pilih semua free item benefit package terlebih dahulu.',
   PACKAGE_BENEFIT_QUANTITY: 'Jumlah free item benefit belum sesuai.',
   PACKAGE_BENEFIT_SKU_NOT_ALLOWED: 'Ada free item yang tidak tersedia untuk benefit package ini.',
+  INVALID_ADD_ON_SELECTION: 'Pilihan add-on tidak valid.',
+  ADD_ON_NOT_ALLOWED: 'Add-on hanya boleh berupa tools atau accessories yang aktif.',
+  ADD_ON_PRICE_NOT_CONFIGURED: 'Harga referensi add-on belum diatur admin.',
+  INSUFFICIENT_ADD_ON_STOCK: 'Stok add-on tidak mencukupi.' ,
+  SINGLE_BRAND_ORDER: 'Satu checkout hanya dapat berisi package, add-on, dan reward dari brand yang sama.',
+  SINGLE_BRAND_CHECK_NOT_CONFIGURED: 'Brand SKU belum dipetakan dengan benar. Silakan hubungi admin.',
 };
 
 function readableError(error: { message?: string } | null) {
@@ -82,6 +88,13 @@ export async function submitCheckoutOrder(_previous: CheckoutActionState, formDa
   } catch {
     return { ok: false, message: errorMessages.INVALID_PACKAGE_SELECTION };
   }
+  let selectedAddOns: Array<{ sku_id: string; quantity: number }> = [];
+  try {
+    const parsed = JSON.parse(String(formData.get('add_on_skus') ?? '[]'));
+    if (Array.isArray(parsed)) selectedAddOns = parsed.filter((row): row is { skuId: string; quantity: number } => typeof row?.skuId === 'string' && Number.isInteger(row?.quantity) && row.quantity > 0).map((row) => ({ sku_id: row.skuId, quantity: row.quantity }));
+  } catch {
+    return { ok: false, message: errorMessages.INVALID_ADD_ON_SELECTION };
+  }
   let selectedBenefits: Array<{ benefit_id: string; sku_id: string; quantity: number }> = [];
   try {
     const parsed = JSON.parse(String(formData.get('selected_benefits') ?? '[]'));
@@ -90,7 +103,7 @@ export async function submitCheckoutOrder(_previous: CheckoutActionState, formDa
     return { ok: false, message: errorMessages.INVALID_PACKAGE_BENEFIT_SELECTION };
   }
 
-  const { data, error } = await (supabase as any).rpc('create_checkout_order_with_contact_phone', {
+  const { data, error } = await (supabase as any).rpc('create_checkout_order_with_addons', {
     p_package_slug: packageSlug,
     p_quantity: quantity,
     p_address_id: addressId,
@@ -105,6 +118,7 @@ export async function submitCheckoutOrder(_previous: CheckoutActionState, formDa
     p_selected_skus: selectedSkus.length ? selectedSkus : null,
     p_selected_benefits: selectedBenefits.length ? selectedBenefits : null,
     p_contact_phone: contactPhone,
+    p_add_on_skus: selectedAddOns.length ? selectedAddOns : null,
   } as never);
   if (error) return { ok: false, message: readableError(error) };
 

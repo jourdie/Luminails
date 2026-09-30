@@ -3,6 +3,7 @@
 import { FormEvent, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '../lib/supabase/client';
+import { SiteNavigation } from './site-navigation';
 
 export function AuthForm({ supabaseUrl, supabasePublishableKey }: { supabaseUrl: string; supabasePublishableKey: string }) {
   const [email, setEmail] = useState('');
@@ -53,12 +54,12 @@ export function AuthForm({ supabaseUrl, supabasePublishableKey }: { supabaseUrl:
   }
 
   return (
-    <main className="auth-shell">
+    <><SiteNavigation /><main className="auth-shell">
       <div className="auth-card">
         <Link className="brand" href="/">luminails<span className="brand-dot">.</span></Link>
         <p className="eyebrow auth-eyebrow">Luminails / account</p>
         <h1>Masuk ke ruang<br /><em>order kamu.</em></h1>
-        <p className="auth-copy">User biasa mulai dari harga standard. Setelah akun dan order memenuhi threshold, tier Premium B2B akan aktif sesuai aturan yang dikonfigurasi admin.</p>
+        <p className="auth-copy">Akun baru mulai dari harga standard. Benefit tier berikutnya aktif sesuai riwayat belanja dan aturan yang dikonfigurasi admin.</p>
         <button className="button button-outline button-full auth-google-button" type="button" onClick={handleGoogleLogin} disabled={pending}><span className="google-mark">G</span>{pending ? 'Menghubungkan...' : 'Lanjut dengan Google'} <span>&rarr;</span></button>
         <div className="auth-divider"><span>atau gunakan email</span></div>
         <form onSubmit={handleSubmit} className="auth-form">
@@ -71,5 +72,6 @@ export function AuthForm({ supabaseUrl, supabasePublishableKey }: { supabaseUrl:
         <Link className="underlined-link" href="/">Kembali ke storefront <span>&rarr;</span></Link>
       </div>
     </main>
+    </>
   );
 }

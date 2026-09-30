@@ -4,15 +4,16 @@ import { useActionState } from 'react';
 import { saveCustomerProfile, type ProfileActionState } from '../app/account/actions';
 import type { AccountIdentity, CustomerProfile } from '../lib/account';
 import { AccountIdentity as AccountIdentityBadge } from './account-identity';
+import { SiteNavigation } from './site-navigation';
 
 const initialState: ProfileActionState = { ok: false, message: '' };
 
 export function ProfileForm({ identity, profile }: { identity: AccountIdentity; profile: CustomerProfile | null }) {
   const [state, formAction, pending] = useActionState(saveCustomerProfile, initialState);
   return (
-    <main className="profile-shell">
+    <><SiteNavigation identity={identity} profile={profile} /><main className="profile-shell">
       <div className="profile-card">
-        <div className="profile-topline"><a className="brand" href="/">luminails<span className="brand-dot">.</span></a><AccountIdentityBadge identity={identity} /></div>
+        <div className="profile-topline"><AccountIdentityBadge identity={identity} /></div>
         <p className="eyebrow profile-eyebrow">Luminails / customer profile</p>
         <h1>Kenali studio<br /><em>yang kamu bangun.</em></h1>
         <p className="profile-copy">Lengkapi data sekali. Nanti alamat dan detail studio akan muncul otomatis saat kamu menyiapkan order, dan tetap bisa diedit kapan saja.</p>
@@ -31,5 +32,6 @@ export function ProfileForm({ identity, profile }: { identity: AccountIdentity; 
         </form>
       </div>
     </main>
+    </>
   );
 }

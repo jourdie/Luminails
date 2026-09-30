@@ -16,10 +16,16 @@ export type PackageSkuOption = {
   id: string;
   sku: string;
   name: string;
+  price?: number | null;
+  imageUrl?: string | null;
   categoryLabel?: string;
   series?: string;
   color?: string;
 };
+
+export type PackageQuantityPrice = { packageId: string; minimumQuantity: number; maximumQuantity: number | null; unitPriceIdr: number; };
+
+export type PackageAddOn = { id: string; sku: string; name: string; categoryLabel: string; productType: 'TOOL' | 'ACCESSORY'; price: number; stockStatus: string; stockQuantity: number; };
 
 export type PackageTierPrice = {
   packageId: string;
@@ -31,7 +37,10 @@ export type PackageTierPrice = {
 
 export type PackageBenefit = { id: string; name: string; quantity: number; variantRule: 'admin_selected' | 'customer_selected'; notes?: string | null; allowedSkus?: PackageSkuOption[] };
 
+export type PackageRecommendation = { id: string; kind: 'package' | 'sku'; title: string; subtitle: string; description: string; href: string; imageUrl?: string | null; price?: number | null; };
+
 export type BrandPackage = {
+  id: string;
   slug: string;
   brand: string;
   brandSlug: string;
@@ -45,6 +54,10 @@ export type BrandPackage = {
   badge: string;
   selectionMode: 'fixed' | 'free_pick';
   selectionCapacity: number | null;
+  selectionMinimum?: number | null;
+  selectionMaximum?: number | null;
+  pricingModel?: 'tier' | 'quantity_range';
+  quantityPrices?: PackageQuantityPrice[];
   allowedSkus: PackageSkuOption[];
   images: PackageImage[];
   tone: 'clay' | 'ivory' | 'plum';
@@ -69,6 +82,10 @@ export function formatIDR(value: number) {
 
 export function formatQuantity(value: number) {
   return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(value);
+}
+
+export function selectQuantityPrice(prices: PackageQuantityPrice[] | undefined, quantity: number) {
+  return prices?.find((price) => quantity >= price.minimumQuantity && (price.maximumQuantity === null || quantity <= price.maximumQuantity))?.unitPriceIdr ?? null;
 }
 
 export function selectActivePackagePrice(prices: PackageTierPrice[], packageId: string, asOf = new Date()) {

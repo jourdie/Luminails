@@ -10,6 +10,7 @@ export type Database = {
           brand: string;
           name: string;
           category: string;
+          category_id: string | null;
           short_description: string | null;
           is_published: boolean;
           sort_order: number;
@@ -25,10 +26,16 @@ export type Database = {
           sku: string;
           name: string;
           category_label: string;
+          category_id: string | null;
           public_reference_price_idr: number | null;
           shade_code: string | null;
           tone: string;
           badge: string | null;
+          image_url: string | null;
+          product_type: 'GEL_POLISH' | 'PREP' | 'TOOL' | 'ACCESSORY' | 'LAMP' | 'OTHER';
+          counts_toward_bottle_moq: boolean;
+          stock_status: 'in_stock' | 'low_stock' | 'out_of_stock' | 'preorder';
+          stock_quantity: number;
           is_active: boolean;
           sort_order: number;
         };
@@ -87,6 +94,12 @@ export type Database = {
         Update: Record<string, unknown>;
         Relationships: [];
       };
+      catalog_categories: {
+        Row: { id: string; slug: string; name: string; sort_order: number; is_active: boolean; created_at: string; updated_at: string; };
+        Insert: Record<string, unknown>;
+        Update: Record<string, unknown>;
+        Relationships: [];
+      };
       commerce_promotions: {
         Row: {
           id: string;
@@ -132,7 +145,7 @@ export type Database = {
         Relationships: [];
       };
       commerce_packages: {
-        Row: { id: string; brand_id: string; slug: string; title: string; audience: string; description: string; long_description: string | null; price_idr: number; compare_at_price_idr: number | null; badge: string | null; visual_tone: 'clay' | 'ivory' | 'plum'; delivery_note: string | null; selection_mode: 'fixed' | 'free_pick'; selection_capacity: number | null; status: 'draft' | 'published' | 'archived'; sort_order: number; created_at: string; updated_at: string; };
+        Row: { id: string; brand_id: string; slug: string; title: string; audience: string; description: string; long_description: string | null; price_idr: number; compare_at_price_idr: number | null; badge: string | null; visual_tone: 'clay' | 'ivory' | 'plum'; delivery_note: string | null; selection_mode: 'fixed' | 'free_pick'; selection_capacity: number | null; selection_minimum: number | null; selection_maximum: number | null; pricing_model: 'tier' | 'quantity_range'; status: 'draft' | 'published' | 'archived'; sort_order: number; created_at: string; updated_at: string; };
         Insert: Record<string, unknown>;
         Update: Record<string, unknown>;
         Relationships: [];
@@ -151,6 +164,12 @@ export type Database = {
       };
       commerce_package_images: {
         Row: { id: string; package_id: string; image_url: string; alt_text: string | null; sort_order: number; created_at: string; };
+        Insert: Record<string, unknown>;
+        Update: Record<string, unknown>;
+        Relationships: [];
+      };
+      commerce_package_quantity_prices: {
+        Row: { id: string; package_id: string; minimum_quantity: number; maximum_quantity: number | null; unit_price_idr: number; sort_order: number; is_active: boolean; created_at: string; updated_at: string; };
         Insert: Record<string, unknown>;
         Update: Record<string, unknown>;
         Relationships: [];

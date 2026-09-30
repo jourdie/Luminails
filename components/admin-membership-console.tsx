@@ -10,7 +10,6 @@ const ACCESS_MODULES = [
   { key: 'catalog', label: 'SKU list', permission: 'catalog' },
   { key: 'packages', label: 'Packages', permission: 'packages' },
   { key: 'inventory', label: 'Inventory', permission: 'inventory' },
-  { key: 'pricing', label: 'B2B Tier', permission: 'pricing' },
   { key: 'promotions', label: 'Promosi', permission: 'promotions' },
   { key: 'orders', label: 'Transaksi', permission: 'orders' },
   { key: 'settings', label: 'WhatsApp', permission: 'settings' },

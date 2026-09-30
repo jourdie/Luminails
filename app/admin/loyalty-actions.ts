@@ -22,13 +22,11 @@ export async function saveCustomerTier(_previous: LoyaltyActionState, formData: 
   const code = String(formData.get('code') ?? '').trim().toUpperCase().replace(/[^A-Z0-9_]+/g, '_');
   const name = String(formData.get('name') ?? '').trim();
   const minimum = idr(formData.get('minimum_rolling_spend_idr'));
-  const maximumRaw = String(formData.get('maximum_rolling_spend_idr') ?? '').trim();
-  const maximum = maximumRaw ? idr(maximumRaw) : null;
   const rollingPeriodMonths = Number(formData.get('rolling_period_months') ?? 6);
-  const multiplier = Number(formData.get('point_multiplier') ?? 1);
+  const pointsPer10000 = Number(formData.get('points_per_10000_idr') ?? 1);
   const priority = Number(formData.get('priority') ?? 0);
-  if (!code || !name || minimum < 0 || (maximum !== null && maximum < minimum) || !Number.isInteger(rollingPeriodMonths) || rollingPeriodMonths < 1 || multiplier <= 0 || !Number.isInteger(priority) || priority < 0) return { ok: false, message: 'Kode, nama, batas spend, periode, multiplier, dan prioritas harus valid.' };
-  const payload = { code, name, minimum_rolling_spend_idr: minimum, maximum_rolling_spend_idr: maximum, rolling_period_months: rollingPeriodMonths, point_multiplier: multiplier, description: String(formData.get('description') ?? '').trim() || null, benefits_description: String(formData.get('benefits_description') ?? '').trim() || null, priority, is_active: formData.get('is_active') === 'on' };
+  if (!code || !name || minimum < 0 || !Number.isInteger(rollingPeriodMonths) || rollingPeriodMonths < 1 || !Number.isFinite(pointsPer10000) || pointsPer10000 <= 0 || !Number.isInteger(priority) || priority < 0) return { ok: false, message: 'Kode, nama, minimum spend, periode, earning rate, dan prioritas harus valid.' };
+  const payload = { code, name, minimum_rolling_spend_idr: minimum, maximum_rolling_spend_idr: null, rolling_period_months: rollingPeriodMonths, point_multiplier: pointsPer10000, points_per_10000_idr: pointsPer10000, description: String(formData.get('description') ?? '').trim() || null, benefits_description: String(formData.get('benefits_description') ?? '').trim() || null, priority, is_active: formData.get('is_active') === 'on' };
   const response = id ? await access.supabase.from('customer_tiers').update(payload).eq('id', id) : await access.supabase.from('customer_tiers').insert(payload);
   if (response.error) return { ok: false, message: response.error.code === '23505' ? 'Code tier sudah digunakan.' : 'Tier belum tersimpan. Periksa nilai input dan migrasi Supabase.' };
   revalidatePath('/admin'); revalidatePath('/account');

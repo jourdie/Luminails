@@ -1,6 +1,6 @@
 import { AuthForm } from '../../components/auth-form';
 
-export const metadata = { title: 'Masuk B2B - Luminails' };
+export const metadata = { title: 'Masuk - Luminails' };
 export const dynamic = 'force-dynamic';
 
 export default function AuthPage() {

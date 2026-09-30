@@ -3,8 +3,12 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '../../lib/supabase/server';
 import { formatOrderStatusNotification, sendWhatsAppTextTo } from '../../lib/whatsapp';
+import type { CatalogProductType, CatalogStockStatus } from '../../lib/admin';
 
 export type AdminActionState = { ok: boolean; message: string };
+
+const CATALOG_PRODUCT_TYPES: CatalogProductType[] = ['GEL_POLISH', 'PREP', 'TOOL', 'ACCESSORY', 'LAMP', 'OTHER'];
+const CATALOG_STOCK_STATUSES: CatalogStockStatus[] = ['in_stock', 'low_stock', 'out_of_stock', 'preorder'];
 
 const ADMIN_PERMISSION_KEYS = ['catalog', 'orders', 'notifications', 'pricing', 'promotions', 'packages', 'inventory', 'settings'] as const;
 export type AdminPermission = typeof ADMIN_PERMISSION_KEYS[number];
@@ -103,8 +107,45 @@ export async function createCatalogProduct(previous: AdminActionState, formData:
   return { ok: true, message: 'Produk baru berhasil dibuat.' };
 }
 
+function inferCatalogProductType(categoryLabel: string): CatalogProductType {
+  const normalized = categoryLabel.toLowerCase();
+  if (normalized.includes('accessor')) return 'ACCESSORY';
+  if (normalized.includes('tool')) return 'TOOL';
+  if (normalized.includes('prep')) return 'PREP';
+  if (normalized.includes('lamp')) return 'LAMP';
+  if (normalized.includes('color') || normalized.includes('essential') || normalized.includes('gel') || normalized.includes('polish')) return 'GEL_POLISH';
+  return 'OTHER';
+}
+
 function imageExtension(type: string) {
   return type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg';
+}
+
+function getCatalogImageFile(formData: FormData) {
+  const entry = formData.get('image_file');
+  if (!entry || typeof entry === 'string' || typeof entry.size !== 'number' || entry.size === 0) return { file: null, invalid: false };
+  const file = entry as File;
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 6 * 1024 * 1024) return { file: null, invalid: true };
+  return { file, invalid: false };
+}
+
+async function uploadCatalogImage(supabase: Awaited<ReturnType<typeof createClient>>, productId: string, file: File): Promise<{ url: string; path: string } | { error: string }> {
+  const imagePath = 'skus/' + productId + '/' + crypto.randomUUID() + '.' + imageExtension(file.type);
+  const { error } = await supabase.storage.from('catalog-images').upload(imagePath, file, { contentType: file.type, cacheControl: '31536000', upsert: false });
+  if (error) return { error: 'Foto SKU belum dapat diupload. Gunakan JPG, PNG, atau WEBP maksimal 6 MB.' };
+  return { url: supabase.storage.from('catalog-images').getPublicUrl(imagePath).data.publicUrl, path: imagePath };
+}
+
+function catalogStoragePath(url: string | null) {
+  if (!url) return null;
+  const marker = '/storage/v1/object/public/catalog-images/';
+  const index = url.indexOf(marker);
+  return index >= 0 ? decodeURIComponent(url.slice(index + marker.length)) : null;
+}
+
+async function removeCatalogImage(supabase: Awaited<ReturnType<typeof createClient>>, url: string | null) {
+  const path = catalogStoragePath(url);
+  if (path) await supabase.storage.from('catalog-images').remove([path]);
 }
 
 function getPackageImageFiles(formData: FormData) {
@@ -150,36 +191,112 @@ async function rollbackCreatedPackage(supabase: Awaited<ReturnType<typeof create
   if (paths.length) await supabase.storage.from('package-images').remove(paths);
   return true;
 }
+export async function createCatalogCategory(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const name = String(formData.get('name') ?? '').trim();
+  const slug = slugFromText(String(formData.get('slug') ?? '').trim() || name);
+  const sortOrder = integerOrZero(formData.get('sort_order'));
+  if (!name || !slug) return { ok: false, message: 'Nama kategori wajib diisi.' };
+  const access = await requireAdmin('catalog');
+  if (!access.ok) return access;
+  const { error } = await access.supabase.from('catalog_categories').insert({ name, slug, sort_order: sortOrder, is_active: true });
+  if (error) return { ok: false, message: error.code === '23505' ? 'Nama atau slug kategori sudah digunakan.' : 'Kategori belum dapat dibuat.' };
+  revalidatePath('/admin');
+  return { ok: true, message: 'Kategori berhasil ditambahkan.' };
+}
+
+export async function archiveCatalogCategory(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const id = String(formData.get('category_id') ?? '').trim();
+  if (!id) return { ok: false, message: 'Kategori tidak ditemukan.' };
+  const access = await requireAdmin('catalog');
+  if (!access.ok) return access;
+  const { count } = await access.supabase.from('catalog_skus').select('id', { count: 'exact', head: true }).eq('category_id', id);
+  if ((count ?? 0) > 0) return { ok: false, message: 'Kategori masih dipakai SKU. Pindahkan SKU terlebih dahulu.' };
+  const { error } = await access.supabase.from('catalog_categories').update({ is_active: false, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) return { ok: false, message: 'Kategori belum dapat diarsipkan.' };
+  revalidatePath('/admin');
+  return { ok: true, message: 'Kategori diarsipkan.' };
+}
+async function findOrCreateCatalogProduct(supabase: Awaited<ReturnType<typeof createClient>>, brandName: string, categoryLabel: string, categoryId: string) {
+  const findExisting = () => supabase.from('catalog_products').select('id').eq('brand', brandName).eq('category', categoryLabel).limit(1).maybeSingle();
+  const existing = await findExisting();
+  if (existing.error) return { error: 'Produk induk SKU belum dapat dicek. Periksa koneksi database.' } as const;
+  if (existing.data) return { id: existing.data.id } as const;
+  const slug = slugFromText(brandName + '-' + categoryLabel);
+  const { data: created, error: productError } = await supabase.from('catalog_products').insert({ slug, brand: brandName, name: brandName + ' ' + categoryLabel, category: categoryLabel, category_id: categoryId || null, short_description: 'Catalog parent untuk SKU ' + brandName + '.', is_published: true, sort_order: 0 }).select('id').single();
+  if (created) return { id: created.id } as const;
+  // Dua submit bersamaan dapat sama-sama lolos lookup awal. Pakai parent yang berhasil dibuat submit pertama.
+  const concurrent = await findExisting();
+  if (concurrent.data) return { id: concurrent.data.id } as const;
+  return { error: productError ? 'Produk induk SKU belum bisa dibuat. Periksa kombinasi brand dan kategori.' : 'Produk induk SKU belum bisa dibuat.' } as const;
+}
 export async function createCatalogSku(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  try {
+    return await createCatalogSkuInternal(previous, formData);
+  } catch (error) {
+    console.error('createCatalogSku failed', error);
+    return { ok: false, message: 'SKU belum dapat dibuat. Periksa data Tools dan coba lagi.' };
+  }
+}
+async function createCatalogSkuInternal(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
   let productId = String(formData.get('product_id') ?? '').trim();
   const brandId = String(formData.get('brand_id') ?? '').trim();
   const sku = String(formData.get('sku') ?? '').trim().toUpperCase();
   const name = String(formData.get('name') ?? '').trim();
-  const categoryLabel = String(formData.get('category_label') ?? '').trim();
+  const categoryId = String(formData.get('category_id') ?? '').trim();
+  const categoryLabelInput = String(formData.get('category_label') ?? '').trim();
   const series = String(formData.get('series') ?? '').trim() || null;
   const color = String(formData.get('color') ?? '').trim() || null;
   const referencePrice = moneyInteger(formData.get('public_reference_price_idr'));
+  const catalogImage = getCatalogImageFile(formData);
+  if (catalogImage.invalid) return { ok: false, message: 'Foto SKU harus JPG, PNG, atau WEBP dengan ukuran maksimal 6 MB.' };
+  const imageFile = catalogImage.file;
+  let imageUrl: string | null = null;
+  let productType = String(formData.get('product_type') ?? '').trim() as CatalogProductType;
+  const countsTowardBottleMoq = formData.get('counts_toward_bottle_moq') === 'on';
+  const stockStatus = String(formData.get('stock_status') ?? 'in_stock') as CatalogStockStatus;
+  const stockQuantity = Math.max(0, integerOrZero(formData.get('stock_quantity')));
+  const isActive = formData.has('is_active') ? formData.get('is_active') === 'on' : true;
   if ((!productId && !brandId) || !/^[A-Z0-9._-]{2,60}$/.test(sku)) return { ok: false, message: 'Pilih brand dan isi SKU code dengan huruf kapital, angka, titik, strip, atau underscore.' };
   if (!name) return { ok: false, message: 'Nama SKU wajib diisi.' };
-  if (!categoryLabel) return { ok: false, message: 'Kategori SKU wajib diisi.' };
+  if (!categoryId && !categoryLabelInput) return { ok: false, message: 'Pilih satu kategori SKU.' };
 
-  const access = await requireAdmin(productId ? 'catalog' : 'packages');
+  if (!CATALOG_STOCK_STATUSES.includes(stockStatus)) return { ok: false, message: 'Status stok tidak valid.' };
+
+  const access = await requireAnyAdmin(['catalog', 'packages']);
   if (!access.ok) return access;
+  const { data: duplicateSku, error: duplicateSkuError } = await access.supabase.from('catalog_skus').select('id').eq('sku', sku).maybeSingle();
+  if (duplicateSkuError) return { ok: false, message: 'SKU belum dapat divalidasi. Periksa koneksi database.' };
+  if (duplicateSku) return { ok: false, message: 'SKU code sudah digunakan. Gunakan SKU code lain.' };
+  let categoryLabel = categoryLabelInput;
+  if (categoryId) {
+    const { data: category } = await access.supabase.from('catalog_categories').select('id, name').eq('id', categoryId).maybeSingle();
+    if (!category) return { ok: false, message: 'Kategori SKU tidak ditemukan atau sudah diarsipkan.' };
+    categoryLabel = category.name;
+  }
+  if (!productType) productType = inferCatalogProductType(categoryLabel);
+  if (!CATALOG_PRODUCT_TYPES.includes(productType)) return { ok: false, message: 'Kategori belum dapat dipetakan ke tipe produk. Pilih kategori yang valid.' };
+  if (productType === 'GEL_POLISH' && !color) return { ok: false, message: 'Gel polish wajib memiliki satu color/shade per SKU.' };
 
   if (!productId) {
     const { data: brand } = await access.supabase.from('catalog_brands').select('id, name').eq('id', brandId).maybeSingle();
     if (!brand) return { ok: false, message: 'Brand tidak ditemukan. Buat brand terlebih dahulu di Brand Register.' };
-    const { data: existingProduct } = await access.supabase.from('catalog_products').select('id').eq('brand', brand.name).eq('category', categoryLabel).limit(1).maybeSingle();
-    productId = existingProduct?.id ?? '';
-    if (!productId) {
-      const { data: createdProduct, error: productError } = await access.supabase.from('catalog_products').insert({ slug: slugFromText(brand.name + '-' + categoryLabel), brand: brand.name, name: brand.name + ' ' + categoryLabel, category: categoryLabel, short_description: 'Catalog parent untuk SKU ' + brand.name + '.', is_published: true, sort_order: 0 }).select('id').single();
-      if (productError || !createdProduct) return { ok: false, message: 'Produk induk SKU belum bisa dibuat. Periksa kombinasi brand dan kategori.' };
-      productId = createdProduct.id;
-    }
+    const parent = await findOrCreateCatalogProduct(access.supabase, brand.name, categoryLabel, categoryId);
+    if ('error' in parent) return { ok: false, message: parent.error ?? 'Produk induk SKU belum bisa dibuat.' };
+    productId = parent.id;
   }
 
-  const { error } = await access.supabase.from('catalog_skus').insert({ product_id: productId, sku, name, category_label: categoryLabel, series, color, public_reference_price_idr: referencePrice, shade_code: null, tone: 'tone-clear', badge: String(formData.get('badge') ?? '').trim() || null, is_active: formData.get('is_active') === 'on', sort_order: integerOrZero(formData.get('sort_order')) });
-  if (error) return { ok: false, message: error.code === '23505' ? 'SKU code sudah digunakan. Gunakan SKU code lain.' : 'SKU belum dibuat. Periksa parent brand, kategori, dan koneksi database.' };
+  if (imageFile) {
+    const uploaded = await uploadCatalogImage(access.supabase, productId, imageFile);
+    const uploadedUrl = 'url' in uploaded ? String(uploaded.url ?? '') : '';
+    if (!uploadedUrl) return { ok: false, message: 'Foto belum dapat diupload.' };
+    imageUrl = uploadedUrl;
+  }
+
+  const { error } = await access.supabase.from('catalog_skus').insert({ product_id: productId, sku, name, category_id: categoryId || null, category_label: categoryLabel, series, color, public_reference_price_idr: referencePrice, shade_code: null, tone: 'tone-clear', badge: String(formData.get('badge') ?? '').trim() || null, image_url: imageUrl, product_type: productType, counts_toward_bottle_moq: countsTowardBottleMoq, stock_status: stockStatus, stock_quantity: stockQuantity, is_active: isActive, sort_order: integerOrZero(formData.get('sort_order')) });
+  if (error) {
+    if (imageUrl) await removeCatalogImage(access.supabase, imageUrl);
+    return { ok: false, message: error.code === '23505' ? 'SKU code sudah digunakan. Gunakan SKU code lain.' : 'SKU belum dibuat. Periksa parent brand, kategori, dan koneksi database.' };
+  }
   revalidatePath('/'); revalidatePath('/admin');
   return { ok: true, message: 'SKU baru berhasil dibuat.' };
 }
@@ -187,19 +304,51 @@ export async function updateCatalogSku(previous: AdminActionState, formData: For
   const skuId = String(formData.get('sku_id') ?? '').trim();
   const sku = String(formData.get('sku') ?? '').trim().toUpperCase();
   const name = String(formData.get('name') ?? '').trim();
-  const categoryLabel = String(formData.get('category_label') ?? '').trim();
+  const categoryId = String(formData.get('category_id') ?? '').trim();
+  const categoryLabelInput = String(formData.get('category_label') ?? '').trim();
   const series = String(formData.get('series') ?? '').trim() || null;
   const color = String(formData.get('color') ?? '').trim() || null;
   const referencePrice = moneyInteger(formData.get('public_reference_price_idr'));
+  const catalogImage = getCatalogImageFile(formData);
+  if (catalogImage.invalid) return { ok: false, message: 'Foto SKU harus JPG, PNG, atau WEBP dengan ukuran maksimal 6 MB.' };
+  const imageFile = catalogImage.file;
+  const currentImageUrl = String(formData.get('current_image_url') ?? '').trim() || null;
+  let imageUrl: string | null = currentImageUrl;
+  let productType = String(formData.get('product_type') ?? '').trim() as CatalogProductType;
+  const countsTowardBottleMoq = formData.get('counts_toward_bottle_moq') === 'on';
+  const stockStatus = String(formData.get('stock_status') ?? 'in_stock') as CatalogStockStatus;
+  const stockQuantity = Math.max(0, integerOrZero(formData.get('stock_quantity')));
+  const isActive = formData.has('is_active') ? formData.get('is_active') === 'on' : true;
   if (!skuId) return { ok: false, message: 'SKU ID tidak ditemukan.' };
   if (!/^[A-Z0-9._-]{2,60}$/.test(sku)) return { ok: false, message: 'SKU code tidak valid.' };
   if (!name) return { ok: false, message: 'Nama SKU wajib diisi.' };
-  if (!categoryLabel) return { ok: false, message: 'Kategori SKU wajib diisi.' };
+  if (!categoryId && !categoryLabelInput) return { ok: false, message: 'Pilih satu kategori SKU.' };
+
+  if (!CATALOG_STOCK_STATUSES.includes(stockStatus)) return { ok: false, message: 'Status stok tidak valid.' };
 
   const access = await requireAnyAdmin(['catalog', 'packages']);
   if (!access.ok) return access;
-  const { error } = await access.supabase.from('catalog_skus').update({ sku, name, category_label: categoryLabel, series, color, public_reference_price_idr: referencePrice, badge: String(formData.get('badge') ?? '').trim() || null, is_active: formData.get('is_active') === 'on', sort_order: integerOrZero(formData.get('sort_order')) }).eq('id', skuId);
-  if (error) return { ok: false, message: error.code === '23505' ? 'SKU code sudah digunakan SKU lain.' : 'SKU belum diperbarui. Periksa data dan koneksi database.' };
+  let categoryLabel = categoryLabelInput;
+  if (categoryId) {
+    const { data: category } = await access.supabase.from('catalog_categories').select('id, name').eq('id', categoryId).maybeSingle();
+    if (!category) return { ok: false, message: 'Kategori SKU tidak ditemukan atau sudah diarsipkan.' };
+    categoryLabel = category.name;
+  }
+  if (!productType) productType = inferCatalogProductType(categoryLabel);
+  if (!CATALOG_PRODUCT_TYPES.includes(productType)) return { ok: false, message: 'Kategori belum dapat dipetakan ke tipe produk. Pilih kategori yang valid.' };
+  if (productType === 'GEL_POLISH' && !color) return { ok: false, message: 'Gel polish wajib memiliki satu color/shade per SKU.' };
+  if (imageFile) {
+    const uploaded = await uploadCatalogImage(access.supabase, skuId, imageFile);
+    const uploadedUrl = 'url' in uploaded ? String(uploaded.url ?? '') : '';
+    if (!uploadedUrl) return { ok: false, message: 'Foto belum dapat diupload.' };
+    imageUrl = uploadedUrl;
+  }
+  const { error } = await access.supabase.from('catalog_skus').update({ sku, name, category_id: categoryId || null, category_label: categoryLabel, series, color, public_reference_price_idr: referencePrice, badge: String(formData.get('badge') ?? '').trim() || null, image_url: imageUrl, product_type: productType, counts_toward_bottle_moq: countsTowardBottleMoq, stock_status: stockStatus, stock_quantity: stockQuantity, is_active: isActive, sort_order: integerOrZero(formData.get('sort_order')), updated_at: new Date().toISOString() }).eq('id', skuId);
+  if (error) {
+    if (imageFile) await removeCatalogImage(access.supabase, imageUrl);
+    return { ok: false, message: error.code === '23505' ? 'SKU code sudah digunakan SKU lain.' : 'SKU belum diperbarui. Periksa data dan koneksi database.' };
+  }
+  if (imageFile && currentImageUrl && currentImageUrl !== imageUrl) await removeCatalogImage(access.supabase, currentImageUrl);
   revalidatePath('/'); revalidatePath('/admin'); revalidatePath('/packages'); revalidatePath('/brands');
   return { ok: true, message: 'SKU berhasil diperbarui.' };
 }
@@ -208,7 +357,7 @@ export async function deleteCatalogSku(previous: AdminActionState, formData: For
   if (!skuId) return { ok: false, message: 'SKU ID tidak ditemukan.' };
   const access = await requireAnyAdmin(['catalog', 'packages']);
   if (!access.ok) return access;
-  const { data: sku } = await access.supabase.from('catalog_skus').select('sku, name').eq('id', skuId).maybeSingle();
+  const { data: sku } = await access.supabase.from('catalog_skus').select('sku, name, product_id, image_url').eq('id', skuId).maybeSingle();
   if (!sku) return { ok: false, message: 'SKU tidak ditemukan atau sudah dihapus.' };
   const [{ count: packageCount }, { count: allowedCount }, { count: stockCount }, { count: orderCount }] = await Promise.all([
     access.supabase.from('commerce_package_items').select('id', { count: 'exact', head: true }).eq('sku_id', skuId),
@@ -216,14 +365,19 @@ export async function deleteCatalogSku(previous: AdminActionState, formData: For
     access.supabase.from('inventory_stock').select('id', { count: 'exact', head: true }).eq('sku_id', skuId),
     access.supabase.from('commerce_order_items').select('id', { count: 'exact', head: true }).eq('sku_id', skuId),
   ]);
-  if ((packageCount ?? 0) > 0 || (allowedCount ?? 0) > 0) return { ok: false, message: `SKU ${sku.sku} belum bisa dihapus: masih dipakai ${packageCount ?? 0} isi package dan ${allowedCount ?? 0} whitelist free-pick. Hapus SKU dari package tersebut dahulu, atau nonaktifkan SKU.` };
-  if ((stockCount ?? 0) > 0) return { ok: false, message: `SKU ${sku.sku} belum bisa dihapus: masih memiliki ${stockCount ?? 0} record inventory. Hapus stock record dahulu, atau nonaktifkan SKU.` };
-  if ((orderCount ?? 0) > 0) return { ok: false, message: `SKU ${sku.sku} belum bisa dihapus: sudah tercatat pada ${orderCount ?? 0} item transaksi. Nonaktifkan SKU agar histori order tetap aman.` };
+  if ((packageCount ?? 0) > 0 || (allowedCount ?? 0) > 0) return { ok: false, message: 'SKU ' + sku.sku + ' masih dipakai package. Hapus dari package atau nonaktifkan SKU.' };
+  if ((stockCount ?? 0) > 0) return { ok: false, message: 'SKU ' + sku.sku + ' masih memiliki record inventory. Hapus stock record dahulu atau nonaktifkan SKU.' };
+  if ((orderCount ?? 0) > 0) return { ok: false, message: 'SKU ' + sku.sku + ' sudah tercatat pada transaksi. Nonaktifkan SKU agar histori order tetap aman.' };
   const { error } = await access.supabase.from('catalog_skus').delete().eq('id', skuId);
-  if (error) return { ok: false, message: `SKU belum dapat dihapus: ${error.message}` };
-  revalidatePath('/'); revalidatePath('/admin'); revalidatePath('/packages');
-  return { ok: true, message: `SKU ${sku.sku} berhasil dihapus.` };
-}export async function updatePricingTier(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  if (error) return { ok: false, message: 'SKU belum dapat dihapus: ' + error.message };
+  if (sku.product_id) {
+    const { count: remainingSkuCount } = await access.supabase.from('catalog_skus').select('id', { count: 'exact', head: true }).eq('product_id', sku.product_id);
+    if ((remainingSkuCount ?? 0) === 0) await access.supabase.from('catalog_products').delete().eq('id', sku.product_id);
+  }
+  revalidatePath('/'); revalidatePath('/admin'); revalidatePath('/packages'); revalidatePath('/catalog');
+  return { ok: true, message: 'SKU ' + sku.sku + ' berhasil dihapus.' };
+}
+export async function updatePricingTier(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
   const tierId = String(formData.get('tier_id') ?? '');
   const name = String(formData.get('name') ?? '').trim();
   const minimumSpend = requiredMoneyInteger(formData.get('minimum_lifetime_spend_idr'));
@@ -439,6 +593,78 @@ async function syncEligibleCustomers(supabase: Awaited<ReturnType<typeof createC
   if (error || !membership?.is_active || membership.role !== 'owner') return { ok: false as const, message: 'Hanya super admin/owner yang dapat mengatur akses admin.' };
   return { ok: true as const, supabase };
 }
+function getTrustedLogoImageFile(formData: FormData) {
+  const entry = formData.get('image_file');
+  if (!entry || typeof entry === 'string' || typeof entry.size !== 'number' || entry.size === 0) return { file: null, invalid: false };
+  const file = entry as File;
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 6 * 1024 * 1024) return { file: null, invalid: true };
+  return { file, invalid: false };
+}
+
+async function uploadTrustedLogoImage(supabase: Awaited<ReturnType<typeof createClient>>, file: File) {
+  const path = 'trusted-logos/' + crypto.randomUUID() + '.' + (file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg');
+  const { error } = await supabase.storage.from('catalog-images').upload(path, file, { contentType: file.type, cacheControl: '31536000', upsert: false });
+  if (error) return { error: 'Logo belum dapat diupload. Gunakan JPG, PNG, atau WEBP maksimal 6 MB.' };
+  return { url: supabase.storage.from('catalog-images').getPublicUrl(path).data.publicUrl };
+}
+
+export async function createTrustedLogo(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const name = String(formData.get('name') ?? '').trim();
+  const altText = String(formData.get('alt_text') ?? '').trim() || null;
+  const sortOrder = integerOrZero(formData.get('sort_order'));
+  const imageUrlInput = String(formData.get('image_url') ?? '').trim();
+  if (!name) return { ok: false, message: 'Nama customer wajib diisi.' };
+  const access = await requireAdmin('settings');
+  if (!access.ok) return access;
+  const selected = getTrustedLogoImageFile(formData);
+  if (selected.invalid) return { ok: false, message: 'Format logo tidak didukung atau ukurannya lebih dari 6 MB.' };
+  let imageUrl = imageUrlInput;
+  if (selected.file) {
+    const uploaded = await uploadTrustedLogoImage(access.supabase, selected.file);
+    const uploadedUrl = 'url' in uploaded ? String(uploaded.url ?? '') : '';
+    if (!uploadedUrl) return { ok: false, message: 'Logo belum dapat diupload.' };
+    imageUrl = uploadedUrl;
+  }
+  if (!imageUrl) return { ok: false, message: 'Upload logo atau masukkan URL logo.' };
+  const { error } = await (access.supabase as any).from('commerce_trusted_logos').insert({ name, image_url: imageUrl, alt_text: altText, sort_order: sortOrder, is_active: formData.get('is_active') !== 'off' });
+  if (error) return { ok: false, message: 'Logo customer belum tersimpan. Pastikan migration Trusted by sudah dijalankan.' };
+  revalidatePath('/'); revalidatePath('/admin');
+  return { ok: true, message: 'Logo customer berhasil ditambahkan.' };
+}
+
+export async function updateTrustedLogo(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const id = String(formData.get('logo_id') ?? '').trim();
+  const name = String(formData.get('name') ?? '').trim();
+  const altText = String(formData.get('alt_text') ?? '').trim() || null;
+  const sortOrder = integerOrZero(formData.get('sort_order'));
+  if (!id || !name) return { ok: false, message: 'Logo customer tidak lengkap.' };
+  const access = await requireAdmin('settings');
+  if (!access.ok) return access;
+  const selected = getTrustedLogoImageFile(formData);
+  if (selected.invalid) return { ok: false, message: 'Format logo tidak didukung atau ukurannya lebih dari 6 MB.' };
+  let imageUrl = String(formData.get('current_image_url') ?? '').trim();
+  if (selected.file) {
+    const uploaded = await uploadTrustedLogoImage(access.supabase, selected.file);
+    const uploadedUrl = 'url' in uploaded ? String(uploaded.url ?? '') : '';
+    if (!uploadedUrl) return { ok: false, message: 'Logo belum dapat diupload.' };
+    imageUrl = uploadedUrl;
+  }
+  const { error } = await (access.supabase as any).from('commerce_trusted_logos').update({ name, image_url: imageUrl, alt_text: altText, sort_order: sortOrder, is_active: formData.get('is_active') === 'on', updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) return { ok: false, message: 'Logo customer belum diperbarui.' };
+  revalidatePath('/'); revalidatePath('/admin');
+  return { ok: true, message: 'Logo customer berhasil diperbarui.' };
+}
+
+export async function deleteTrustedLogo(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const id = String(formData.get('logo_id') ?? '').trim();
+  if (!id) return { ok: false, message: 'Logo customer tidak ditemukan.' };
+  const access = await requireAdmin('settings');
+  if (!access.ok) return access;
+  const { error } = await (access.supabase as any).from('commerce_trusted_logos').delete().eq('id', id);
+  if (error) return { ok: false, message: 'Logo customer belum dapat dihapus.' };
+  revalidatePath('/'); revalidatePath('/admin');
+  return { ok: true, message: 'Logo customer berhasil dihapus.' };
+}
 export async function createBrand(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
   const slug = String(formData.get('slug') ?? '').trim().toLowerCase();
   const name = String(formData.get('name') ?? '').trim();
@@ -472,17 +698,22 @@ export async function deleteBrand(previous: AdminActionState, formData: FormData
   if (!access.ok) return access;
   const { data: brand } = await access.supabase.from('catalog_brands').select('id, name').eq('id', brandId).maybeSingle();
   if (!brand) return { ok: false, message: 'Brand tidak ditemukan atau sudah dihapus.' };
-  const [{ count: packageCount }, { count: productCount }] = await Promise.all([
-    access.supabase.from('commerce_packages').select('id', { count: 'exact', head: true }).eq('brand_id', brandId),
-    access.supabase.from('catalog_products').select('id', { count: 'exact', head: true }).eq('brand', brand.name),
-  ]);
-  if ((packageCount ?? 0) > 0) return { ok: false, message: 'Brand tidak dapat dihapus karena masih dipakai package. Hapus atau pindahkan package terlebih dahulu.' };
-  if ((productCount ?? 0) > 0) return { ok: false, message: 'Brand tidak dapat dihapus karena masih memiliki SKU/product. Hapus dependency tersebut terlebih dahulu.' };
+  const { count: packageCount } = await access.supabase.from('commerce_packages').select('id', { count: 'exact', head: true }).eq('brand_id', brandId);
+  if ((packageCount ?? 0) > 0) return { ok: false, message: 'Brand masih dipakai package. Hapus package terlebih dahulu.' };
+  const { data: products } = await access.supabase.from('catalog_products').select('id').eq('brand', brand.name);
+  const productIds = (products ?? []).map((product) => product.id).filter((id): id is string => Boolean(id));
+  if (productIds.length) {
+    const { count: skuCount } = await access.supabase.from('catalog_skus').select('id', { count: 'exact', head: true }).in('product_id', productIds);
+    if ((skuCount ?? 0) > 0) return { ok: false, message: 'Brand masih memiliki SKU aktif/tersimpan. Hapus SKU terlebih dahulu.' };
+    const { error: productError } = await access.supabase.from('catalog_products').delete().in('id', productIds);
+    if (productError) return { ok: false, message: 'Data induk catalog brand belum dapat dibersihkan.' };
+  }
   const { error } = await access.supabase.from('catalog_brands').delete().eq('id', brandId);
-  if (error) return { ok: false, message: 'Brand belum dapat dihapus karena masih memiliki dependency.' };
-  revalidatePath('/admin'); revalidatePath('/brands'); revalidatePath('/packages');
-  return { ok: true, message: `Brand ${brand.name} berhasil dihapus.` };
-}function parsePackageTierPrices(tiers: { id: string; code: string }[], formData: FormData) {
+  if (error) return { ok: false, message: 'Brand belum dapat dihapus: ' + error.message };
+  revalidatePath('/admin'); revalidatePath('/brands'); revalidatePath('/packages'); revalidatePath('/catalog');
+  return { ok: true, message: 'Brand ' + brand.name + ' berhasil dihapus.' };
+}
+function parsePackageTierPrices(tiers: { id: string; code: string }[], formData: FormData) {
   const basePrice = formData.get('price_idr');
   const prices: Array<{ tierId: string; tierCode: string; value: number }> = [];
   for (const [index, tier] of tiers.entries()) {
@@ -574,6 +805,37 @@ export async function updateWhatsappSettings(previous: AdminActionState, formDat
   return { ok: true, message: 'Pengaturan WhatsApp berhasil diperbarui.' };
 }
 
+function parsePackageQuantityPrices(formData: FormData) {
+  const minimums = formData.getAll('quantity_price_min');
+  const maximums = formData.getAll('quantity_price_max');
+  const prices = formData.getAll('quantity_price_idr');
+  const rows: Array<{ minimum_quantity: number; maximum_quantity: number | null; unit_price_idr: number; sort_order: number }> = [];
+  for (let index = 0; index < minimums.length; index += 1) {
+    const minimum = integerOrZero(minimums[index]);
+    const maximumRaw = String(maximums[index] ?? '').trim();
+    const maximum = maximumRaw ? integerOrZero(maximums[index]) : null;
+    const price = moneyInteger(prices[index] ?? null);
+    if (minimum < 1 || (maximum !== null && maximum < minimum) || price === null) return { error: 'Setiap range wajib memiliki minimum, maksimum yang valid, dan harga per botol.' } as const;
+    rows.push({ minimum_quantity: minimum, maximum_quantity: maximum, unit_price_idr: price, sort_order: index });
+  }
+  rows.sort((a, b) => a.minimum_quantity - b.minimum_quantity);
+  for (let index = 1; index < rows.length; index += 1) {
+    const previous = rows[index - 1];
+    if (rows[index].minimum_quantity <= (previous.maximum_quantity ?? Number.MAX_SAFE_INTEGER)) return { error: 'Range quantity tidak boleh overlap.' } as const;
+  }
+  if (rows.some((row, index) => row.maximum_quantity === null && index !== rows.length - 1)) return { error: 'Range tanpa maksimum hanya boleh menjadi baris terakhir.' } as const;
+  return { rows } as const;
+}
+
+async function syncPackageQuantityPrices(supabase: Awaited<ReturnType<typeof createClient>>, packageId: string, formData: FormData) {
+  const parsed = parsePackageQuantityPrices(formData);
+  if ('error' in parsed) return parsed.error;
+  const { error: deleteError } = await supabase.from('commerce_package_quantity_prices').delete().eq('package_id', packageId);
+  if (deleteError) return 'Quantity pricing lama belum dapat diperbarui.';
+  if (!parsed.rows.length) return 'Tambahkan minimal satu range quantity pricing.';
+  const { error } = await supabase.from('commerce_package_quantity_prices').insert(parsed.rows.map((row) => ({ package_id: packageId, ...row })));
+  return error ? 'Quantity pricing belum dapat disimpan. Periksa range yang dibuat.' : null;
+}
 function parsePackageForm(formData: FormData) {
   const brandId = String(formData.get('brand_id') ?? '');
   const title = String(formData.get('title') ?? '').trim();
@@ -582,9 +844,12 @@ function parsePackageForm(formData: FormData) {
   const audience = String(formData.get('audience') ?? '');
   const packageTypeId = String(formData.get('package_type_id') ?? '').trim() || null;
   const description = String(formData.get('description') ?? '').trim();
+  const pricingModel = String(formData.get('pricing_model') ?? 'tier');
+  const quantityPrices = parsePackageQuantityPrices(formData);
   const firstTierPrice = Array.from(formData.entries()).find(([key, value]) => key.startsWith('package_price_') && String(value).trim() !== '')?.[1] ?? null;
   const basePriceValue = formData.get('price_idr');
-  const price = requiredMoneyInteger(basePriceValue !== null && String(basePriceValue).trim() !== '' ? basePriceValue : firstTierPrice);
+  const quantityRows = ('rows' in quantityPrices ? quantityPrices.rows : []) ?? [];
+  const price = pricingModel === 'quantity_range' ? (quantityRows[0]?.unit_price_idr ?? -1) : requiredMoneyInteger(basePriceValue !== null && String(basePriceValue).trim() !== '' ? basePriceValue : firstTierPrice);
   const compareAtValue = String(formData.get('compare_at_price_idr') ?? '').trim();
   const compareAt = compareAtValue ? moneyInteger(formData.get('compare_at_price_idr')) : null;
   const visualTone = String(formData.get('visual_tone') ?? 'clay');
@@ -592,25 +857,33 @@ function parsePackageForm(formData: FormData) {
   const selectionMode = String(formData.get('selection_mode') ?? 'fixed');
   const selectionCapacityValue = String(formData.get('selection_capacity') ?? '').trim();
   const selectionCapacity = selectionCapacityValue ? integerOrZero(formData.get('selection_capacity')) : null;
+  const selectionMinimumValue = String(formData.get('selection_minimum') ?? '').trim();
+  const selectionMinimum = selectionMinimumValue ? integerOrZero(formData.get('selection_minimum')) : null;
+  const selectionMaximumValue = String(formData.get('selection_maximum') ?? '').trim();
+  const selectionMaximum = selectionMaximumValue ? integerOrZero(formData.get('selection_maximum')) : null;
   const minimumQuantity = Math.max(1, integerOrZero(formData.get('minimum_quantity')) || 1);
-  const minimumSubtotal = moneyInteger(formData.get('minimum_subtotal_idr')) ?? 0;
   const pointsEarningMode = String(formData.get('points_earning_mode') ?? 'normal');
   const pointsMultiplier = Number(formData.get('points_multiplier') ?? 1);
+  if (!['tier', 'quantity_range'].includes(pricingModel)) return { ok: false as const, message: 'Model harga package belum valid.' };
+  if (pricingModel === 'quantity_range' && 'error' in quantityPrices) return { ok: false as const, message: quantityPrices.error ?? 'Quantity pricing belum valid.' };
+  if (pricingModel === 'quantity_range' && quantityRows.length === 0) return { ok: false as const, message: 'Tambahkan minimal satu range quantity pricing.' };
   if (!brandId) return { ok: false as const, message: 'Pilih brand package terlebih dahulu.' };
   if (!title) return { ok: false as const, message: 'Nama package wajib diisi.' };
   if (!slug || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) return { ok: false as const, message: 'Slug URL tidak valid. Gunakan huruf kecil, angka, dan tanda hubung.' };
   if (!packageTypeId || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(audience)) return { ok: false as const, message: 'Pilih tipe package yang valid.' };
   if (!description) return { ok: false as const, message: 'Deskripsi package wajib diisi.' };
-  if (price < 0) return { ok: false as const, message: 'Harga bundling tier pertama wajib diisi dengan angka yang valid.' };
+  if (price < 0) return { ok: false as const, message: 'Harga package wajib diisi dengan angka yang valid.' };
   if (compareAtValue && compareAt === null) return { ok: false as const, message: 'Harga normal market retail tidak valid.' };
-  if (compareAt !== null && compareAt < price) return { ok: false as const, message: 'Harga normal market retail tidak boleh lebih kecil dari harga bundling tier pertama.' };
+  if (compareAt !== null && compareAt < price) return { ok: false as const, message: 'Harga normal market retail tidak boleh lebih kecil dari harga package.' };
   if (!['clay', 'ivory', 'plum'].includes(visualTone)) return { ok: false as const, message: 'Tone package belum valid.' };
   if (!['draft', 'published', 'archived'].includes(status)) return { ok: false as const, message: 'Status package belum valid.' };
   if (!['fixed', 'free_pick'].includes(selectionMode)) return { ok: false as const, message: 'Model isi package belum valid.' };
-  if (selectionMode === 'free_pick' && (!selectionCapacity || selectionCapacity < 1)) return { ok: false as const, message: 'Free-pick wajib memiliki kapasitas minimal 1.' };
-  if (selectionMode === 'fixed' && selectionCapacity !== null) return { ok: false as const, message: 'Fixed package tidak memakai kapasitas pilihan. Kosongkan field kapasitas.' };
+  if (selectionMode === 'fixed' && pricingModel !== 'tier') return { ok: false as const, message: 'Fixed package memakai satu harga per package, bukan quantity range.' };
+  if (selectionMode === 'free_pick' && pricingModel === 'tier' && (!selectionCapacity || selectionCapacity < 1)) return { ok: false as const, message: 'Free-pick package tier wajib memiliki kapasitas exact.' };
+  if (selectionMode === 'free_pick' && pricingModel === 'quantity_range' && (!selectionMinimum || selectionMinimum < 1 || (selectionMaximum !== null && selectionMaximum < selectionMinimum))) return { ok: false as const, message: 'Quantity pricing free-pick wajib memiliki minimum dan maksimum yang valid.' };
+  if (selectionMode === 'fixed' && (selectionCapacity !== null || selectionMinimum !== null || selectionMaximum !== null)) return { ok: false as const, message: 'Fixed package tidak memakai kapasitas pilihan.' };
   if (!['normal', 'reduced', 'none'].includes(pointsEarningMode) || pointsMultiplier <= 0) return { ok: false as const, message: 'Aturan earning points package belum valid.' };
-  return { ok: true as const, data: { brand_id: brandId, package_type_id: packageTypeId, slug, title, audience, description, long_description: String(formData.get('long_description') ?? '').trim() || null, price_idr: price, compare_at_price_idr: compareAt, badge: String(formData.get('badge') ?? '').trim() || null, visual_tone: visualTone, delivery_note: String(formData.get('delivery_note') ?? '').trim() || null, selection_mode: selectionMode, selection_capacity: selectionMode === 'free_pick' ? selectionCapacity : null, starts_at: String(formData.get('starts_at') ?? '').trim() || null, ends_at: String(formData.get('ends_at') ?? '').trim() || null, minimum_quantity: minimumQuantity, minimum_subtotal_idr: minimumSubtotal, stackable: formData.get('stackable') === 'on', points_earning_mode: pointsEarningMode, points_multiplier: pointsMultiplier, allow_reward_redemption: formData.get('allow_reward_redemption') !== 'off', status, sort_order: integerOrZero(formData.get('sort_order')) } };
+  return { ok: true as const, data: { brand_id: brandId, package_type_id: packageTypeId, slug, title, audience, description, long_description: String(formData.get('long_description') ?? '').trim() || null, price_idr: price, compare_at_price_idr: compareAt, badge: String(formData.get('badge') ?? '').trim() || null, visual_tone: visualTone, delivery_note: String(formData.get('delivery_note') ?? '').trim() || null, selection_mode: selectionMode, selection_capacity: selectionMode === 'free_pick' && pricingModel === 'tier' ? selectionCapacity : null, selection_minimum: selectionMode === 'free_pick' && pricingModel === 'quantity_range' ? selectionMinimum : null, selection_maximum: selectionMode === 'free_pick' && pricingModel === 'quantity_range' ? selectionMaximum : null, pricing_model: pricingModel, starts_at: String(formData.get('starts_at') ?? '').trim() || null, ends_at: String(formData.get('ends_at') ?? '').trim() || null, minimum_quantity: minimumQuantity, minimum_subtotal_idr: 0, stackable: formData.get('stackable') === 'on', points_earning_mode: pointsEarningMode, points_multiplier: pointsMultiplier, allow_reward_redemption: formData.get('allow_reward_redemption') !== 'off', status, sort_order: integerOrZero(formData.get('sort_order')) } };
 }
 
 function parseFixedPackageItems(formData: FormData) {
@@ -650,8 +923,8 @@ export async function createPackage(previous: AdminActionState, formData: FormDa
     await rollbackCreatedPackage(access.supabase, createdPackage.id);
     return { ok: false, message };
   };
-  const priceError = await syncPackagePrices(access.supabase, createdPackage.id, formData);
-  if (priceError) return rollback(priceError);
+  const priceError = values.data.pricing_model === 'quantity_range' ? await syncPackageQuantityPrices(access.supabase, createdPackage.id, formData) : null;
+  if (priceError) return rollback(priceError ?? 'Harga package belum dapat disimpan.');
   const imageError = await addPackageImages(access.supabase, createdPackage.id, packageImageFiles);
   if (imageError) return rollback(imageError);
   if (values.data.selection_mode === 'free_pick') {
@@ -719,8 +992,8 @@ export async function updatePackage(previous: AdminActionState, formData: FormDa
   }
   const { error } = await (access.supabase as any).from('commerce_packages').update(values.data).eq('id', id);
   if (error) return { ok: false, message: 'Package belum diperbarui.' };
-  const priceError = await syncPackagePrices(access.supabase, id, formData);
-  if (priceError) return { ok: false, message: priceError };
+  const priceError = values.data.pricing_model === 'quantity_range' ? await syncPackageQuantityPrices(access.supabase, id, formData) : null;
+  if (priceError) return { ok: false, message: priceError ?? 'Harga package belum dapat disimpan.' };
   if (values.data.status === 'published') {
     const { error: brandError } = await access.supabase.from('catalog_brands').update({ is_published: true }).eq('id', values.data.brand_id);
     if (brandError) return { ok: false, message: 'Package tersimpan, tetapi brand belum bisa ditampilkan ke customer.' };
@@ -842,19 +1115,21 @@ export async function savePackageType(previous: AdminActionState, formData: Form
   return { ok: true, message: id ? 'Tipe package berhasil diperbarui.' : 'Tipe package berhasil dibuat.' };
 }
 
-export async function archivePackageType(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+export async function deletePackageType(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
   const id = String(formData.get('package_type_id') ?? '').trim();
   if (!id) return { ok: false, message: 'Tipe package tidak ditemukan.' };
   const access = await requireAdmin('packages');
   if (!access.ok) return access;
   const db = access.supabase as any;
+  const { data: type } = await db.from('commerce_package_types').select('name').eq('id', id).maybeSingle();
+  if (!type) return { ok: false, message: 'Tipe package tidak ditemukan atau sudah dihapus.' };
   const { count } = await db.from('commerce_packages').select('id', { count: 'exact', head: true }).eq('package_type_id', id);
-  if ((count ?? 0) > 0) return { ok: false, message: 'Tipe masih dipakai package. Nonaktifkan, jangan hapus.' };
-  const { error } = await db.from('commerce_package_types').update({ is_active: false }).eq('id', id);
-  if (error) return { ok: false, message: 'Tipe package belum dapat diarsipkan.' };
-  revalidatePath('/admin'); revalidatePath('/packages'); return { ok: true, message: 'Tipe package diarsipkan.' };
+  if ((count ?? 0) > 0) return { ok: false, message: 'Tipe masih dipakai package. Hapus atau pindahkan package terlebih dahulu.' };
+  const { error } = await db.from('commerce_package_types').delete().eq('id', id);
+  if (error) return { ok: false, message: 'Tipe package belum dapat dihapus: ' + error.message };
+  revalidatePath('/admin'); revalidatePath('/packages');
+  return { ok: true, message: 'Tipe ' + type.name + ' berhasil dihapus.' };
 }
-
 export async function savePackageEligibility(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
   const packageId = String(formData.get('package_id') ?? '').trim();
   const tierId = String(formData.get('customer_tier_id') ?? '').trim() || null;
@@ -965,4 +1240,54 @@ export async function deletePackageBenefit(previous: AdminActionState, formData:
   const { error } = await (access.supabase as any).from('commerce_package_benefits').delete().eq('id', id);
   if (error) return { ok: false, message: 'Benefit package belum dapat dihapus.' };
   revalidatePath('/admin'); revalidatePath('/packages'); return { ok: true, message: 'Benefit package dihapus.' };
+}
+
+export async function createRecommendation(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const targetType = String(formData.get('target_type') ?? 'package');
+  const packageId = String(formData.get('package_id') ?? '').trim() || null;
+  const skuId = String(formData.get('sku_id') ?? '').trim() || null;
+  const placement = String(formData.get('placement') ?? 'package_detail');
+  const priority = Math.max(0, integerOrZero(formData.get('priority')));
+  const startsAt = String(formData.get('starts_at') ?? '').trim() || null;
+  const endsAt = String(formData.get('ends_at') ?? '').trim() || null;
+  if (!['package', 'sku'].includes(targetType) || (targetType === 'package' && !packageId) || (targetType === 'sku' && !skuId)) return { ok: false, message: 'Pilih satu target rekomendasi.' };
+  if (!['package_detail', 'home', 'packages'].includes(placement)) return { ok: false, message: 'Placement rekomendasi tidak valid.' };
+  if (startsAt && endsAt && new Date(endsAt).getTime() <= new Date(startsAt).getTime()) return { ok: false, message: 'Tanggal selesai harus setelah tanggal mulai.' };
+  const access = await requireAdmin('packages');
+  if (!access.ok) return access;
+  const { error } = await (access.supabase as any).from('commerce_recommendations').insert({ placement, package_id: targetType === 'package' ? packageId : null, sku_id: targetType === 'sku' ? skuId : null, priority, is_active: formData.get('is_active') === 'on', starts_at: startsAt, ends_at: endsAt });
+  if (error) return { ok: false, message: error.code === '23505' ? 'Target ini sudah ada di placement tersebut.' : 'Rekomendasi belum dapat disimpan.' };
+  revalidatePath('/admin'); revalidatePath('/'); revalidatePath('/packages');
+  return { ok: true, message: 'Rekomendasi berhasil ditambahkan.' };
+}
+
+export async function updateRecommendation(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const id = String(formData.get('id') ?? '').trim();
+  const targetType = String(formData.get('target_type') ?? 'package');
+  const packageId = String(formData.get('package_id') ?? '').trim() || null;
+  const skuId = String(formData.get('sku_id') ?? '').trim() || null;
+  const placement = String(formData.get('placement') ?? 'package_detail');
+  const priority = Math.max(0, integerOrZero(formData.get('priority')));
+  const startsAt = String(formData.get('starts_at') ?? '').trim() || null;
+  const endsAt = String(formData.get('ends_at') ?? '').trim() || null;
+  if (!id || !['package', 'sku'].includes(targetType) || (targetType === 'package' && !packageId) || (targetType === 'sku' && !skuId)) return { ok: false, message: 'Data rekomendasi belum lengkap.' };
+  if (!['package_detail', 'home', 'packages'].includes(placement)) return { ok: false, message: 'Placement rekomendasi tidak valid.' };
+  if (startsAt && endsAt && new Date(endsAt).getTime() <= new Date(startsAt).getTime()) return { ok: false, message: 'Tanggal selesai harus setelah tanggal mulai.' };
+  const access = await requireAdmin('packages');
+  if (!access.ok) return access;
+  const { error } = await (access.supabase as any).from('commerce_recommendations').update({ placement, package_id: targetType === 'package' ? packageId : null, sku_id: targetType === 'sku' ? skuId : null, priority, is_active: formData.get('is_active') === 'on', starts_at: startsAt, ends_at: endsAt, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) return { ok: false, message: error.code === '23505' ? 'Target ini sudah ada di placement tersebut.' : 'Rekomendasi belum dapat diubah.' };
+  revalidatePath('/admin'); revalidatePath('/'); revalidatePath('/packages');
+  return { ok: true, message: 'Rekomendasi berhasil diperbarui.' };
+}
+
+export async function deleteRecommendation(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const id = String(formData.get('id') ?? '').trim();
+  if (!id) return { ok: false, message: 'Rekomendasi tidak ditemukan.' };
+  const access = await requireAdmin('packages');
+  if (!access.ok) return access;
+  const { error } = await (access.supabase as any).from('commerce_recommendations').delete().eq('id', id);
+  if (error) return { ok: false, message: 'Rekomendasi belum dapat dihapus.' };
+  revalidatePath('/admin'); revalidatePath('/'); revalidatePath('/packages');
+  return { ok: true, message: 'Rekomendasi dihapus.' };
 }
