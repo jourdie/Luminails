@@ -27,7 +27,7 @@ with sync_playwright() as playwright:
 
     audit(page, "/")
     assert page.get_by_role("link", name="Buka keranjang, 0 item").is_visible()
-    assert page.get_by_role("heading", name="Dipakai untuk ritme nyata.").is_visible()
+    assert page.get_by_role("heading", name="Dipercaya oleh working studios.").is_visible()
 
     audit(page, "/brands")
     brands_heading = page.locator(".brand-stage h1").inner_text()

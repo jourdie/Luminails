@@ -34,7 +34,7 @@ with sync_playwright() as playwright:
         page.get_by_role("button", name="Semua", exact=True).click()
 
     page.get_by_role("link", name="Explore packages").click()
-    page.wait_for_url("**/packages")
+    page.wait_for_url("**/packages*")
     page.wait_for_load_state("networkidle")
     assert page.locator("h1").inner_text().startswith("Packages built")
     assert_no_horizontal_overflow(page)
