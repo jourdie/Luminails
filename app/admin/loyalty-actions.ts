@@ -48,7 +48,14 @@ export async function archiveCustomerTier(_previous: LoyaltyActionState, formDat
 export async function saveLoyaltySettings(_previous: LoyaltyActionState, formData: FormData): Promise<LoyaltyActionState> {
   const access = await requireLoyaltyAdmin('pricing');
   if (!access.ok) return access;
-  const payload = { point_unit_value_idr: Math.max(1, idr(formData.get('point_unit_value_idr'))), expiry_months: Math.max(1, Number(formData.get('expiry_months') ?? 12)), reward_cost_warning_percent: Math.max(0, Number(formData.get('reward_cost_warning_percent') ?? 3)), tier_rolling_period_months: Math.max(1, Number(formData.get('tier_rolling_period_months') ?? 6)), automatic_tier_recalculation: formData.get('automatic_tier_recalculation') === 'on', allow_manual_point_adjustment: formData.get('allow_manual_point_adjustment') === 'on', require_adjustment_reason: formData.get('require_adjustment_reason') === 'on', updated_by: (await access.supabase.auth.getUser()).data.user?.id ?? null };
+  const pointUnitValue = idr(formData.get('point_unit_value_idr'));
+  const expiryMonths = Number(formData.get('expiry_months') ?? 12);
+  const warningPercent = Number(formData.get('reward_cost_warning_percent') ?? 3);
+  const rollingMonths = Number(formData.get('tier_rolling_period_months') ?? 6);
+  if (!Number.isInteger(pointUnitValue) || pointUnitValue < 1 || !Number.isInteger(expiryMonths) || expiryMonths < 1 || !Number.isFinite(warningPercent) || warningPercent < 0 || warningPercent > 100 || !Number.isInteger(rollingMonths) || rollingMonths < 1) {
+    return { ok: false, message: 'Nilai point, expiry, warning cost, dan periode tier harus valid.' };
+  }
+  const payload = { point_unit_value_idr: pointUnitValue, expiry_months: expiryMonths, reward_cost_warning_percent: warningPercent, tier_rolling_period_months: rollingMonths, automatic_tier_recalculation: formData.get('automatic_tier_recalculation') === 'on', allow_manual_point_adjustment: formData.get('allow_manual_point_adjustment') === 'on', require_adjustment_reason: formData.get('require_adjustment_reason') === 'on', updated_by: (await access.supabase.auth.getUser()).data.user?.id ?? null };
   const { error } = await access.supabase.from('loyalty_point_settings').upsert({ key: 'default', ...payload });
   if (error) return { ok: false, message: 'Pengaturan points belum tersimpan.' };
   revalidatePath('/admin'); revalidatePath('/account'); return { ok: true, message: 'Pengaturan loyalty berhasil disimpan.' };

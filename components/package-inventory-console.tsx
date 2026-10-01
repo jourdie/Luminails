@@ -22,6 +22,21 @@ import type { AdminBrand, AdminCustomerTier, AdminInventoryLocation, AdminInvent
 import { IdrInput } from './idr-input';
 
 const initialState: AdminActionState = { ok: false, message: '' };
+const MAX_PACKAGE_IMAGE_BYTES = 6 * 1024 * 1024;
+
+function validatePackageImages(event: React.FormEvent<HTMLFormElement>) {
+  const input = event.currentTarget.elements.namedItem('package_images');
+  if (!(input instanceof HTMLInputElement)) return true;
+  const files = Array.from(input.files ?? []);
+  const message = files.length > 5
+    ? 'Foto package maksimal 5 file.'
+    : files.some((file) => file.size > MAX_PACKAGE_IMAGE_BYTES)
+      ? 'Ukuran setiap foto package maksimal 6 MB.'
+      : '';
+  input.setCustomValidity(message);
+  if (message) input.reportValidity();
+  return !message;
+}
 
 function QuantityPricingFields({ canEdit, rows }: { canEdit: boolean; rows?: AdminPackageQuantityPrice[] }) {
   const defaults = rows?.length ? rows.map((row) => ({ minimum: row.minimum_quantity, maximum: row.maximum_quantity?.toString() ?? '', price: row.unit_price_idr })) : [{ minimum: 12, maximum: '23', price: 120000 }, { minimum: 24, maximum: '35', price: 117000 }, { minimum: 36, maximum: '47', price: 114000 }, { minimum: 48, maximum: '', price: 108000 }];
@@ -78,7 +93,7 @@ const [selectionMode, setSelectionMode] = useState<'fixed' | 'free_pick'>('fixed
       <div className="admin-page-heading"><div><p className="eyebrow">Offer builder</p><h2>Packages</h2></div><span className="notification-count">{packages.length} package  /  {brands.length} brand</span></div>
       <section className="admin-panel">
         <div className="panel-heading"><div><p className="eyebrow">Customer offer</p><h3>Tambah package</h3></div><span className="notification-count">Harga package + points loyalty</span></div>
-        {brands.length === 0 ? <p className="admin-empty-copy">Daftarkan brand di Brand Register terlebih dahulu.</p> : activeSkus.length === 0 ? <p className="admin-empty-copy">Buat minimal satu SKU aktif di SKU list sebelum membuat package.</p> : <form className="admin-crud-form package-create-form" action={packageAction} encType="multipart/form-data">
+        {brands.length === 0 ? <p className="admin-empty-copy">Daftarkan brand di Brand Register terlebih dahulu.</p> : activeSkus.length === 0 ? <p className="admin-empty-copy">Buat minimal satu SKU aktif di SKU list sebelum membuat package.</p> : <form className="admin-crud-form package-create-form" action={packageAction} encType="multipart/form-data" onSubmit={validatePackageImages}>
           <label>Brand<select name="brand_id" disabled={!canEdit} required>{brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}</select></label>
                     <label>Nama package<input name="title" placeholder="Party 12 Botol" value={packageTitle} onChange={(event) => setPackageTitle(event.target.value)} disabled={!canEdit} required /></label>
           <label>Slug URL<input name="slug" placeholder="party-12-botol" value={autoSlug} readOnly disabled={!canEdit} /><small className="field-help">Otomatis mengikuti nama package, contoh: Party 12 botol refill -&gt; party-12-botol-refill.</small></label>
@@ -189,7 +204,7 @@ function PackageRow({ item, brands, packageItems, packageAllowedSkus, packageIma
 
 function PackageImageEditor({ packageId, images, canEdit }: { packageId: string; images: AdminPackageImage[]; canEdit: boolean }) {
   const [state, action, pending] = useActionState(updatePackageImages, initialState);
-  return <div className="package-images-editor"><div className="package-items-heading"><span>Foto package customer</span><small>{images.length} / 5 foto</small></div>{images.length > 0 && <div className="package-images-grid">{images.map((image) => <PackageImageRow key={image.id} image={image} canEdit={canEdit} />)}</div>}<form className="admin-crud-inline-form package-image-upload-form" action={action} encType="multipart/form-data"><input type="hidden" name="package_id" value={packageId} /><label>Tambah foto<input name="package_images" type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={!canEdit} /></label><div className="admin-crud-record-foot"><span className={state.message ? (state.ok ? 'action-success' : 'action-error') : 'admin-form-note'}>{state.message || 'Foto paling pertama menjadi cover package.'}</span><button className="button button-outline" type="submit" disabled={!canEdit || pending}>{pending ? '...' : 'Upload foto'}</button></div></form></div>;
+  return <div className="package-images-editor"><div className="package-items-heading"><span>Foto package customer</span><small>{images.length} / 5 foto</small></div>{images.length > 0 && <div className="package-images-grid">{images.map((image) => <PackageImageRow key={image.id} image={image} canEdit={canEdit} />)}</div>}<form className="admin-crud-inline-form package-image-upload-form" action={action} encType="multipart/form-data" onSubmit={validatePackageImages}><input type="hidden" name="package_id" value={packageId} /><label>Tambah foto<input name="package_images" type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={!canEdit} /></label><div className="admin-crud-record-foot"><span role="status" aria-live="polite" className={state.message ? (state.ok ? 'action-success' : 'action-error') : 'admin-form-note'}>{state.message || 'Foto paling pertama menjadi cover package.'}</span><button className="button button-outline" type="submit" disabled={!canEdit || pending}>{pending ? '...' : 'Upload foto'}</button></div></form></div>;
 }
 
 function PackageImageRow({ image, canEdit }: { image: AdminPackageImage; canEdit: boolean }) {
@@ -341,5 +356,5 @@ export function AdminWhatsappSettings({ settings, canEdit }: { settings: AdminWh
 }
 
 function ActionFoot({ state, pending, label, disabled }: { state: AdminActionState; pending: boolean; label: string; disabled: boolean }) {
-  return <div className="admin-crud-action"><span className={state.message ? (state.ok ? 'action-success' : 'action-error') : 'admin-form-note'}>{state.message || 'Perubahan disimpan melalui server.'}</span><button className="button button-dark" type="submit" disabled={disabled || pending}>{pending ? 'Menyimpan...' : label}</button></div>;
+  return <div className="admin-crud-action"><span role="status" aria-live="polite" className={state.message ? (state.ok ? 'action-success' : 'action-error') : 'admin-form-note'}>{state.message || 'Perubahan disimpan melalui server.'}</span><button className="button button-dark" type="submit" disabled={disabled || pending}>{pending ? 'Menyimpan...' : label}</button></div>;
 }

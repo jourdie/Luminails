@@ -22,7 +22,28 @@ export function CheckoutForm({ item, quantity, notes, selectedSkus, selectedBene
   const [addOnSelection, setAddOnSelection] = useState<Record<string, number>>({});
   const [rewardQuantity, setRewardQuantity] = useState(1);
   const selectedReward = rewards.find((reward) => reward.sku_id === rewardSku);
-  const idempotencyKey = useState(() => crypto.randomUUID())[0];
+  const checkoutKeyStorage = `luminails-checkout-key:${item.slug}:${quantity}`;
+  const [idempotencyKey, setIdempotencyKey] = useState(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const existing = window.sessionStorage.getItem(checkoutKeyStorage);
+        if (existing) return existing;
+      }
+    } catch {
+      // Session storage can be unavailable in privacy-restricted browsers.
+    }
+    return crypto.randomUUID();
+  });
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(checkoutKeyStorage, idempotencyKey);
+    } catch {
+      // The database unique key still protects the current page session.
+    }
+  }, [checkoutKeyStorage, idempotencyKey]);
+  function rotateIdempotencyKey() {
+    setIdempotencyKey(crypto.randomUUID());
+  }
   const maxRewardQuantity = selectedReward ? Math.min(selectedReward.max_redemption_quantity, selectedReward.reward_stock > 0 ? selectedReward.reward_stock : selectedReward.max_redemption_quantity) : 1;
   const redeemedPoints = selectedReward ? selectedReward.points_cost * rewardQuantity : 0;
 
@@ -74,7 +95,7 @@ export function CheckoutForm({ item, quantity, notes, selectedSkus, selectedBene
       </details>
     </section>
      <p className={'checkout-help'}>Satu checkout hanya diproses untuk satu brand fulfillment. Add-on dan reward mengikuti brand package ini; poin customer tetap bisa digunakan pada transaksi brand lain berikutnya.</p>
-     <form className={'checkout-form'} action={formAction}>
+     <form className={'checkout-form'} action={formAction} onChange={rotateIdempotencyKey}>
     <input type={'hidden'} name={'package_slug'} value={item.slug} />
     <input type={'hidden'} name={'quantity'} value={quantity} />
     <input type={'hidden'} name={'selected_skus'} value={JSON.stringify(selectedSkus)} />

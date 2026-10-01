@@ -94,7 +94,8 @@ export async function sendWhatsAppTextTo(recipient: string, body: string) {
     body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'text', text: { preview_url: false, body } }),
   });
   if (!response.ok) { console.error('WhatsApp Cloud API error', response.status, await response.text()); return { ok: false as const, skipped: false, message: 'WhatsApp notification gagal dikirim.' }; }
-  return { ok: true as const, skipped: false, message: 'WhatsApp notification terkirim.' };
+  const responsePayload = await response.json().catch(() => null) as { messages?: Array<{ id?: string }> } | null;
+  return { ok: true as const, skipped: false, message: 'WhatsApp notification terkirim.', providerMessageId: responsePayload?.messages?.[0]?.id ?? null };
 }
 
 export async function sendWhatsAppText(body: string) {

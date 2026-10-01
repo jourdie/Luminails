@@ -1,10 +1,10 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
-import { sendOrderNotification, type OrderWebhookRecord } from '../../../../lib/whatsapp';
+import { processWhatsAppNotificationOutbox } from '../../../../lib/notification-outbox';
 
 export const runtime = 'nodejs';
 
-type SupabaseWebhookPayload = { type?: string; table?: string; schema?: string; record?: OrderWebhookRecord | null };
+type SupabaseWebhookPayload = { type?: string; table?: string; schema?: string; record?: { id?: string } | null };
 
 function matchesSecret(expected: string | undefined, received: string | null) {
   if (!expected || !received) return false;
@@ -18,6 +18,6 @@ export async function POST(request: Request) {
   let payload: SupabaseWebhookPayload;
   try { payload = await request.json() as SupabaseWebhookPayload; } catch { return NextResponse.json({ ok: false, message: 'Payload JSON tidak valid.' }, { status: 400 }); }
   if (payload.type !== 'INSERT' || payload.table !== 'commerce_orders' || payload.schema !== 'public' || !payload.record?.id) return NextResponse.json({ ok: true, skipped: true, message: 'Event diabaikan.' });
-  const result = await sendOrderNotification(payload.record);
-  return NextResponse.json(result, { status: result.ok || result.skipped ? 200 : 502 });
+  const result = await processWhatsAppNotificationOutbox(25);
+  return NextResponse.json(result, { status: result.ok ? 200 : 502 });
 }

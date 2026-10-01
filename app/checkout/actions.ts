@@ -3,7 +3,6 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '../../lib/supabase/server';
-import { formatCustomerOrderCreatedNotification, sendWhatsAppText, sendWhatsAppTextTo } from '../../lib/whatsapp';
 
 export type CheckoutActionState = { ok: boolean; message: string };
 
@@ -53,13 +52,17 @@ function readableError(error: { message?: string } | null) {
   return errorMessages[code] ?? `Order belum dibuat: ${error?.message ?? 'terjadi kesalahan server.'}`;
 }
 
-export async function cancelCheckoutOrder(formData: FormData) {
+export async function cancelCheckoutOrder(_previous: CheckoutActionState, formData: FormData): Promise<CheckoutActionState> {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
-  if (!authData.user) return;
-  await (supabase as any).rpc('cancel_checkout_order', { p_order_id: String(formData.get('order_id') ?? '') });
+  if (!authData.user) return { ok: false, message: errorMessages.LOGIN_REQUIRED };
+  const orderId = String(formData.get('order_id') ?? '').trim();
+  if (!orderId) return { ok: false, message: 'Order tidak ditemukan.' };
+  const { error } = await (supabase as any).rpc('cancel_checkout_order', { p_order_id: orderId });
+  if (error) return { ok: false, message: `Order belum dapat dibatalkan: ${error.message ?? 'terjadi kesalahan server.'}` };
   revalidatePath('/account/orders');
   revalidatePath('/account');
+  return { ok: true, message: 'Order berhasil dibatalkan.' };
 }
 
 export async function submitCheckoutOrder(_previous: CheckoutActionState, formData: FormData): Promise<CheckoutActionState> {
@@ -125,10 +128,6 @@ export async function submitCheckoutOrder(_previous: CheckoutActionState, formDa
   const order = data as unknown as { order_id?: string; total_idr?: number; discount_idr?: number; promotion_code?: string | null } | null;
   if (!order?.order_id) return { ok: false, message: 'Order belum mengembalikan nomor referensi.' };
 
-  await Promise.allSettled([
-    sendWhatsAppText('Order baru Luminails ' + order.order_id + '\nTotal: Rp' + new Intl.NumberFormat('id-ID').format(Number(order.total_idr ?? 0)) + '\nStatus: menunggu review\nPromo: ' + (order.promotion_code ?? '-') + '\nCustomer: ' + (authData.user.email ?? '-')),
-    sendWhatsAppTextTo(contactPhone, formatCustomerOrderCreatedNotification(order.order_id, Number(order.total_idr ?? 0), order.promotion_code)),
-  ]);
   revalidatePath('/account');
   revalidatePath('/account/orders');
   redirect(`/account/orders?created=${encodeURIComponent(order.order_id)}`);

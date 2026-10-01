@@ -28,11 +28,14 @@ truncate table
   public.commerce_package_allowed_skus,
   public.commerce_package_images,
   public.commerce_package_prices,
+  public.commerce_package_quantity_prices,
   public.commerce_package_items,
   public.commerce_packages,
   public.inventory_movements,
   public.inventory_stock,
   public.commerce_payment_transactions,
+  public.commerce_payment_events,
+  public.commerce_notification_outbox,
   public.commerce_shipments,
   public.commerce_order_events,
   public.commerce_order_items,
@@ -43,6 +46,7 @@ truncate table
   public.loyalty_reward_catalog,
   public.customer_addresses,
   public.commerce_orders,
+  public.commerce_recommendations,
   public.admin_notifications,
   public.admin_audit_logs,
   public.customer_profiles,
@@ -51,7 +55,9 @@ truncate table
   public.catalog_sku_prices,
   public.catalog_skus,
   public.catalog_products,
-  public.catalog_brands
+  public.catalog_brands,
+  public.catalog_categories,
+  public.commerce_trusted_logos
 restart identity;
 
 do $$
@@ -66,10 +72,13 @@ begin
     union all select count(*) from public.catalog_skus
     union all select count(*) from public.commerce_packages
     union all select count(*) from public.commerce_promotions
+    union all select count(*) from public.commerce_recommendations
     union all select count(*) from public.customer_profiles
     union all select count(*) from public.b2b_accounts
     union all select count(*) from public.loyalty_accounts
     union all select count(*) from public.admin_audit_logs
+    union all select count(*) from public.catalog_categories
+    union all select count(*) from public.commerce_trusted_logos
   ) counts;
 
   if coalesce(remaining_rows, 0) <> 0 then

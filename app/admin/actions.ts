@@ -2,10 +2,25 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '../../lib/supabase/server';
-import { formatOrderStatusNotification, sendWhatsAppTextTo } from '../../lib/whatsapp';
 import type { CatalogProductType, CatalogStockStatus } from '../../lib/admin';
 
 export type AdminActionState = { ok: boolean; message: string };
+
+type ActionDatabaseError = {
+  code?: string | null;
+  message?: string | null;
+  details?: string | null;
+  hint?: string | null;
+};
+
+function databaseErrorMessage(error: unknown, fallback: string) {
+  const databaseError = error as ActionDatabaseError | null;
+  const code = databaseError?.code || '';
+  const detail = [databaseError?.message, databaseError?.details, databaseError?.hint]
+    .filter((value): value is string => Boolean(value && value.trim()))
+    .join(' | ');
+  return `${fallback}${code ? ` (${code})` : ''}${detail ? ` Detail: ${detail}` : ''}`;
+}
 
 const CATALOG_PRODUCT_TYPES: CatalogProductType[] = ['GEL_POLISH', 'PREP', 'TOOL', 'ACCESSORY', 'LAMP', 'OTHER'];
 const CATALOG_STOCK_STATUSES: CatalogStockStatus[] = ['in_stock', 'low_stock', 'out_of_stock', 'preorder'];
@@ -129,10 +144,17 @@ function getCatalogImageFile(formData: FormData) {
   return { file, invalid: false };
 }
 
+function isUploadFile(value: FormDataEntryValue): value is File {
+  return typeof value !== 'string'
+    && typeof value.size === 'number'
+    && typeof value.type === 'string'
+    && typeof value.arrayBuffer === 'function';
+}
+
 async function uploadCatalogImage(supabase: Awaited<ReturnType<typeof createClient>>, productId: string, file: File): Promise<{ url: string; path: string } | { error: string }> {
   const imagePath = 'skus/' + productId + '/' + crypto.randomUUID() + '.' + imageExtension(file.type);
   const { error } = await supabase.storage.from('catalog-images').upload(imagePath, file, { contentType: file.type, cacheControl: '31536000', upsert: false });
-  if (error) return { error: 'Foto SKU belum dapat diupload. Gunakan JPG, PNG, atau WEBP maksimal 6 MB.' };
+  if (error) return { error: 'Upload foto SKU gagal: ' + (error.message || 'Storage menolak file.') };
   return { url: supabase.storage.from('catalog-images').getPublicUrl(imagePath).data.publicUrl, path: imagePath };
 }
 
@@ -149,7 +171,7 @@ async function removeCatalogImage(supabase: Awaited<ReturnType<typeof createClie
 }
 
 function getPackageImageFiles(formData: FormData) {
-  const files = formData.getAll('package_images').filter((entry): entry is File => entry instanceof File && entry.size > 0);
+  const files = formData.getAll('package_images').filter((entry): entry is File => isUploadFile(entry) && entry.size > 0);
   if (files.length > 5) return 'too_many' as const;
   if (files.some((file) => !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 6 * 1024 * 1024)) return 'invalid' as const;
   return files;
@@ -165,14 +187,14 @@ async function addPackageImages(supabase: Awaited<ReturnType<typeof createClient
     const { error: uploadError } = await supabase.storage.from('package-images').upload(imagePath, file, { contentType: file.type, cacheControl: '31536000', upsert: false });
     if (uploadError) {
       if (uploadedPaths.length) await supabase.storage.from('package-images').remove(uploadedPaths);
-      return 'Foto package belum dapat diupload. Pastikan migration package images sudah dijalankan.';
+      return 'Upload foto package gagal: ' + (uploadError.message || 'Storage menolak file.');
     }
     uploadedPaths.push(imagePath);
     const imageUrl = supabase.storage.from('package-images').getPublicUrl(imagePath).data.publicUrl;
     const { error: insertError } = await supabase.from('commerce_package_images').insert({ package_id: packageId, image_url: imageUrl, alt_text: 'Foto package', sort_order: (count ?? 0) + index });
     if (insertError) {
       await supabase.storage.from('package-images').remove(uploadedPaths);
-      return 'Foto package sudah diupload tetapi belum tercatat. Pastikan migration package images sudah dijalankan.';
+      return 'Foto package sudah diupload tetapi belum tercatat: ' + (insertError.message || 'database menolak data.');
     }
   }
   return null;
@@ -192,29 +214,44 @@ async function rollbackCreatedPackage(supabase: Awaited<ReturnType<typeof create
   return true;
 }
 export async function createCatalogCategory(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
-  const name = String(formData.get('name') ?? '').trim();
-  const slug = slugFromText(String(formData.get('slug') ?? '').trim() || name);
-  const sortOrder = integerOrZero(formData.get('sort_order'));
-  if (!name || !slug) return { ok: false, message: 'Nama kategori wajib diisi.' };
-  const access = await requireAdmin('catalog');
-  if (!access.ok) return access;
-  const { error } = await access.supabase.from('catalog_categories').insert({ name, slug, sort_order: sortOrder, is_active: true });
-  if (error) return { ok: false, message: error.code === '23505' ? 'Nama atau slug kategori sudah digunakan.' : 'Kategori belum dapat dibuat.' };
-  revalidatePath('/admin');
-  return { ok: true, message: 'Kategori berhasil ditambahkan.' };
+  try {
+    const name = String(formData.get('name') ?? '').trim();
+    const slug = slugFromText(String(formData.get('slug') ?? '').trim() || name);
+    const sortOrder = integerOrZero(formData.get('sort_order'));
+    if (!name || !slug) return { ok: false, message: 'Nama kategori wajib diisi.' };
+
+    const access = await requireAdmin('catalog');
+    if (!access.ok) return access;
+    const { error } = await access.supabase.from('catalog_categories').insert({ name, slug, sort_order: sortOrder, is_active: true });
+    if (error) {
+      if (error.code === '23505') return { ok: false, message: 'Nama atau slug kategori sudah digunakan.' };
+      if (error.code === '23514') return { ok: false, message: databaseErrorMessage(error, 'Slug kategori tidak valid. Gunakan huruf kecil, angka, dan tanda strip.') };
+      if (error.code === '42501') return { ok: false, message: databaseErrorMessage(error, 'Permission catalog akun ini ditolak oleh database.') };
+      return { ok: false, message: databaseErrorMessage(error, 'Kategori belum dapat dibuat.') };
+    }
+    return { ok: true, message: 'Kategori berhasil ditambahkan.' };
+  } catch (error) {
+    console.error('createCatalogCategory failed', error);
+    return { ok: false, message: databaseErrorMessage(error, 'Kategori belum dapat dibuat karena terjadi error server.') };
+  }
 }
 
 export async function archiveCatalogCategory(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
-  const id = String(formData.get('category_id') ?? '').trim();
-  if (!id) return { ok: false, message: 'Kategori tidak ditemukan.' };
-  const access = await requireAdmin('catalog');
-  if (!access.ok) return access;
-  const { count } = await access.supabase.from('catalog_skus').select('id', { count: 'exact', head: true }).eq('category_id', id);
-  if ((count ?? 0) > 0) return { ok: false, message: 'Kategori masih dipakai SKU. Pindahkan SKU terlebih dahulu.' };
-  const { error } = await access.supabase.from('catalog_categories').update({ is_active: false, updated_at: new Date().toISOString() }).eq('id', id);
-  if (error) return { ok: false, message: 'Kategori belum dapat diarsipkan.' };
-  revalidatePath('/admin');
-  return { ok: true, message: 'Kategori diarsipkan.' };
+  try {
+    const id = String(formData.get('category_id') ?? '').trim();
+    if (!id) return { ok: false, message: 'Kategori tidak ditemukan.' };
+    const access = await requireAdmin('catalog');
+    if (!access.ok) return access;
+    const { count, error: countError } = await access.supabase.from('catalog_skus').select('id', { count: 'exact', head: true }).eq('category_id', id);
+    if (countError) return { ok: false, message: databaseErrorMessage(countError, 'Pemakaian kategori belum dapat diperiksa.') };
+    if ((count ?? 0) > 0) return { ok: false, message: 'Kategori masih dipakai SKU. Pindahkan SKU terlebih dahulu.' };
+    const { error } = await access.supabase.from('catalog_categories').update({ is_active: false, updated_at: new Date().toISOString() }).eq('id', id);
+    if (error) return { ok: false, message: databaseErrorMessage(error, 'Kategori belum dapat diarsipkan.') };
+    return { ok: true, message: 'Kategori diarsipkan.' };
+  } catch (error) {
+    console.error('archiveCatalogCategory failed', error);
+    return { ok: false, message: databaseErrorMessage(error, 'Kategori belum dapat diarsipkan karena terjadi error server.') };
+  }
 }
 async function findOrCreateCatalogProduct(supabase: Awaited<ReturnType<typeof createClient>>, brandName: string, categoryLabel: string, categoryId: string) {
   const findExisting = () => supabase.from('catalog_products').select('id').eq('brand', brandName).eq('category', categoryLabel).limit(1).maybeSingle();
@@ -234,7 +271,8 @@ export async function createCatalogSku(previous: AdminActionState, formData: For
     return await createCatalogSkuInternal(previous, formData);
   } catch (error) {
     console.error('createCatalogSku failed', error);
-    return { ok: false, message: 'SKU belum dapat dibuat. Periksa data Tools dan coba lagi.' };
+    const detail = error instanceof Error && error.message ? ` Detail: ${error.message}` : '';
+    return { ok: false, message: 'SKU belum dapat dibuat. Periksa data, permission Storage, dan koneksi Supabase.' + detail };
   }
 }
 async function createCatalogSkuInternal(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
@@ -287,9 +325,8 @@ async function createCatalogSkuInternal(previous: AdminActionState, formData: Fo
 
   if (imageFile) {
     const uploaded = await uploadCatalogImage(access.supabase, productId, imageFile);
-    const uploadedUrl = 'url' in uploaded ? String(uploaded.url ?? '') : '';
-    if (!uploadedUrl) return { ok: false, message: 'Foto belum dapat diupload.' };
-    imageUrl = uploadedUrl;
+    if ('error' in uploaded) return { ok: false, message: uploaded.error };
+    imageUrl = uploaded.url;
   }
 
   const { error } = await access.supabase.from('catalog_skus').insert({ product_id: productId, sku, name, category_id: categoryId || null, category_label: categoryLabel, series, color, public_reference_price_idr: referencePrice, shade_code: null, tone: 'tone-clear', badge: String(formData.get('badge') ?? '').trim() || null, image_url: imageUrl, product_type: productType, counts_toward_bottle_moq: countsTowardBottleMoq, stock_status: stockStatus, stock_quantity: stockQuantity, is_active: isActive, sort_order: integerOrZero(formData.get('sort_order')) });
@@ -301,6 +338,16 @@ async function createCatalogSkuInternal(previous: AdminActionState, formData: Fo
   return { ok: true, message: 'SKU baru berhasil dibuat.' };
 }
 export async function updateCatalogSku(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  try {
+    return await updateCatalogSkuInternal(formData);
+  } catch (error) {
+    console.error('updateCatalogSku failed', error);
+    const detail = error instanceof Error && error.message ? ` Detail: ${error.message}` : '';
+    return { ok: false, message: 'SKU belum dapat diperbarui. Periksa data, permission Storage, dan koneksi Supabase.' + detail };
+  }
+}
+
+async function updateCatalogSkuInternal(formData: FormData): Promise<AdminActionState> {
   const skuId = String(formData.get('sku_id') ?? '').trim();
   const sku = String(formData.get('sku') ?? '').trim().toUpperCase();
   const name = String(formData.get('name') ?? '').trim();
@@ -312,8 +359,8 @@ export async function updateCatalogSku(previous: AdminActionState, formData: For
   const catalogImage = getCatalogImageFile(formData);
   if (catalogImage.invalid) return { ok: false, message: 'Foto SKU harus JPG, PNG, atau WEBP dengan ukuran maksimal 6 MB.' };
   const imageFile = catalogImage.file;
-  const currentImageUrl = String(formData.get('current_image_url') ?? '').trim() || null;
-  let imageUrl: string | null = currentImageUrl;
+  let currentImageUrl: string | null = null;
+  let imageUrl: string | null = null;
   let productType = String(formData.get('product_type') ?? '').trim() as CatalogProductType;
   const countsTowardBottleMoq = formData.get('counts_toward_bottle_moq') === 'on';
   const stockStatus = String(formData.get('stock_status') ?? 'in_stock') as CatalogStockStatus;
@@ -328,6 +375,11 @@ export async function updateCatalogSku(previous: AdminActionState, formData: For
 
   const access = await requireAnyAdmin(['catalog', 'packages']);
   if (!access.ok) return access;
+  const { data: currentSku, error: currentSkuError } = await access.supabase.from('catalog_skus').select('image_url').eq('id', skuId).maybeSingle();
+  if (currentSkuError) return { ok: false, message: 'SKU belum dapat diperiksa: ' + currentSkuError.message };
+  if (!currentSku) return { ok: false, message: 'SKU tidak ditemukan atau sudah dihapus.' };
+  currentImageUrl = currentSku.image_url;
+  imageUrl = currentImageUrl;
   let categoryLabel = categoryLabelInput;
   if (categoryId) {
     const { data: category } = await access.supabase.from('catalog_categories').select('id, name').eq('id', categoryId).maybeSingle();
@@ -339,9 +391,8 @@ export async function updateCatalogSku(previous: AdminActionState, formData: For
   if (productType === 'GEL_POLISH' && !color) return { ok: false, message: 'Gel polish wajib memiliki satu color/shade per SKU.' };
   if (imageFile) {
     const uploaded = await uploadCatalogImage(access.supabase, skuId, imageFile);
-    const uploadedUrl = 'url' in uploaded ? String(uploaded.url ?? '') : '';
-    if (!uploadedUrl) return { ok: false, message: 'Foto belum dapat diupload.' };
-    imageUrl = uploadedUrl;
+    if ('error' in uploaded) return { ok: false, message: uploaded.error };
+    imageUrl = uploaded.url;
   }
   const { error } = await access.supabase.from('catalog_skus').update({ sku, name, category_id: categoryId || null, category_label: categoryLabel, series, color, public_reference_price_idr: referencePrice, badge: String(formData.get('badge') ?? '').trim() || null, image_url: imageUrl, product_type: productType, counts_toward_bottle_moq: countsTowardBottleMoq, stock_status: stockStatus, stock_quantity: stockQuantity, is_active: isActive, sort_order: integerOrZero(formData.get('sort_order')), updated_at: new Date().toISOString() }).eq('id', skuId);
   if (error) {
@@ -370,6 +421,7 @@ export async function deleteCatalogSku(previous: AdminActionState, formData: For
   if ((orderCount ?? 0) > 0) return { ok: false, message: 'SKU ' + sku.sku + ' sudah tercatat pada transaksi. Nonaktifkan SKU agar histori order tetap aman.' };
   const { error } = await access.supabase.from('catalog_skus').delete().eq('id', skuId);
   if (error) return { ok: false, message: 'SKU belum dapat dihapus: ' + error.message };
+  await removeCatalogImage(access.supabase, sku.image_url);
   if (sku.product_id) {
     const { count: remainingSkuCount } = await access.supabase.from('catalog_skus').select('id', { count: 'exact', head: true }).eq('product_id', sku.product_id);
     if ((remainingSkuCount ?? 0) === 0) await access.supabase.from('catalog_products').delete().eq('id', sku.product_id);
@@ -903,6 +955,16 @@ async function syncPackageAllowedSkus(supabase: Awaited<ReturnType<typeof create
 }
 
 export async function createPackage(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  try {
+    return await createPackageInternal(formData);
+  } catch (error) {
+    console.error('createPackage failed', error);
+    const detail = error instanceof Error && error.message ? ` Detail: ${error.message}` : '';
+    return { ok: false, message: 'Package belum dapat dibuat. Periksa brand, SKU, foto, permission, dan koneksi Supabase.' + detail };
+  }
+}
+
+async function createPackageInternal(formData: FormData): Promise<AdminActionState> {
   const values = parsePackageForm(formData);
   if (!values.ok) return values;
   const packageImageFiles = getPackageImageFiles(formData);
@@ -945,20 +1007,27 @@ export async function createPackage(previous: AdminActionState, formData: FormDa
 }
 
 export async function updatePackageImages(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
-  const packageId = String(formData.get('package_id') ?? '').trim();
-  const files = getPackageImageFiles(formData);
-  if (!packageId) return { ok: false, message: 'Package ID tidak ditemukan.' };
-  if (files === 'invalid') return { ok: false, message: 'Foto package harus JPG, PNG, atau WEBP dengan ukuran maksimal 6 MB.' };
-  if (files === 'too_many') return { ok: false, message: 'Foto package maksimal 5 file.' };
-  if (!files.length) return { ok: false, message: 'Pilih minimal satu foto package.' };
-  const access = await requireAdmin('packages');
-  if (!access.ok) return access;
-  const { count: existingCount } = await access.supabase.from('commerce_package_images').select('id', { count: 'exact', head: true }).eq('package_id', packageId);
-  if ((existingCount ?? 0) + files.length < 3) return { ok: false, message: 'Package membutuhkan minimal 3 foto. Upload foto sampai jumlahnya 3-5.' };
-  const errorMessage = await addPackageImages(access.supabase, packageId, files);
-  if (errorMessage) return { ok: false, message: errorMessage };
-  revalidatePath('/admin'); revalidatePath('/packages'); revalidatePath('/brands');
-  return { ok: true, message: 'Foto package berhasil ditambahkan.' };
+  try {
+    const packageId = String(formData.get('package_id') ?? '').trim();
+    const files = getPackageImageFiles(formData);
+    if (!packageId) return { ok: false, message: 'Package ID tidak ditemukan.' };
+    if (files === 'invalid') return { ok: false, message: 'Foto package harus JPG, PNG, atau WEBP dengan ukuran maksimal 6 MB.' };
+    if (files === 'too_many') return { ok: false, message: 'Foto package maksimal 5 file.' };
+    if (!files.length) return { ok: false, message: 'Pilih minimal satu foto package.' };
+    const access = await requireAdmin('packages');
+    if (!access.ok) return access;
+    const { count: existingCount, error: countError } = await access.supabase.from('commerce_package_images').select('id', { count: 'exact', head: true }).eq('package_id', packageId);
+    if (countError) return { ok: false, message: 'Jumlah foto package belum dapat diperiksa: ' + countError.message };
+    if ((existingCount ?? 0) + files.length < 3) return { ok: false, message: 'Package membutuhkan minimal 3 foto. Upload foto sampai jumlahnya 3-5.' };
+    const errorMessage = await addPackageImages(access.supabase, packageId, files);
+    if (errorMessage) return { ok: false, message: errorMessage };
+    revalidatePath('/admin'); revalidatePath('/packages'); revalidatePath('/brands');
+    return { ok: true, message: 'Foto package berhasil ditambahkan.' };
+  } catch (error) {
+    console.error('updatePackageImages failed', error);
+    const detail = error instanceof Error && error.message ? ` Detail: ${error.message}` : '';
+    return { ok: false, message: 'Foto package belum dapat disimpan. Periksa migration, permission Storage, dan koneksi Supabase.' + detail };
+  }
 }
 
 export async function deletePackageImage(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
@@ -980,26 +1049,33 @@ export async function deletePackageImage(previous: AdminActionState, formData: F
 }
 
 export async function updatePackage(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
-  const id = String(formData.get('package_id') ?? '');
-  const values = parsePackageForm(formData);
-  if (!id) return { ok: false, message: 'Package ID tidak ditemukan.' };
-  if (!values.ok) return values;
-  const access = await requireAdmin('packages');
-  if (!access.ok) return access;
-  if (values.data.status === 'published') {
-    const { count: imageCount } = await access.supabase.from('commerce_package_images').select('id', { count: 'exact', head: true }).eq('package_id', id);
-    if ((imageCount ?? 0) < 3) return { ok: false, message: 'Package Published wajib memiliki minimal 3 foto package. Upload foto terlebih dahulu.' };
+  try {
+    const id = String(formData.get('package_id') ?? '');
+    const values = parsePackageForm(formData);
+    if (!id) return { ok: false, message: 'Package ID tidak ditemukan.' };
+    if (!values.ok) return values;
+    const access = await requireAdmin('packages');
+    if (!access.ok) return access;
+    if (values.data.status === 'published') {
+      const { count: imageCount, error: imageCountError } = await access.supabase.from('commerce_package_images').select('id', { count: 'exact', head: true }).eq('package_id', id);
+      if (imageCountError) return { ok: false, message: 'Foto package belum dapat diperiksa: ' + imageCountError.message };
+      if ((imageCount ?? 0) < 3) return { ok: false, message: 'Package Published wajib memiliki minimal 3 foto package. Upload foto terlebih dahulu.' };
+    }
+    const { error } = await (access.supabase as any).from('commerce_packages').update(values.data).eq('id', id);
+    if (error) return { ok: false, message: 'Package belum diperbarui: ' + error.message };
+    const priceError = values.data.pricing_model === 'quantity_range' ? await syncPackageQuantityPrices(access.supabase, id, formData) : null;
+    if (priceError) return { ok: false, message: priceError ?? 'Harga package belum dapat disimpan.' };
+    if (values.data.status === 'published') {
+      const { error: brandError } = await access.supabase.from('catalog_brands').update({ is_published: true }).eq('id', values.data.brand_id);
+      if (brandError) return { ok: false, message: 'Package tersimpan, tetapi brand belum bisa ditampilkan ke customer: ' + brandError.message };
+    }
+    revalidatePath('/admin'); revalidatePath('/packages'); revalidatePath('/brands');
+    return { ok: true, message: 'Package berhasil diperbarui.' };
+  } catch (error) {
+    console.error('updatePackage failed', error);
+    const detail = error instanceof Error && error.message ? ` Detail: ${error.message}` : '';
+    return { ok: false, message: 'Package belum dapat diperbarui. Periksa data, migration, permission, dan koneksi Supabase.' + detail };
   }
-  const { error } = await (access.supabase as any).from('commerce_packages').update(values.data).eq('id', id);
-  if (error) return { ok: false, message: 'Package belum diperbarui.' };
-  const priceError = values.data.pricing_model === 'quantity_range' ? await syncPackageQuantityPrices(access.supabase, id, formData) : null;
-  if (priceError) return { ok: false, message: priceError ?? 'Harga package belum dapat disimpan.' };
-  if (values.data.status === 'published') {
-    const { error: brandError } = await access.supabase.from('catalog_brands').update({ is_published: true }).eq('id', values.data.brand_id);
-    if (brandError) return { ok: false, message: 'Package tersimpan, tetapi brand belum bisa ditampilkan ke customer.' };
-  }
-  revalidatePath('/admin'); revalidatePath('/packages'); revalidatePath('/brands');
-  return { ok: true, message: 'Package berhasil diperbarui.' };
 }
 
 export async function updatePackageAllowedSkus(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
@@ -1079,24 +1155,9 @@ export async function updateOrderTracking(previous: AdminActionState, formData: 
   if (!access.ok) return access;
   const { error } = await (access.supabase as any).rpc('set_order_tracking', { p_order_id: orderId, p_provider: provider, p_tracking_number: trackingNumber, p_tracking_url: trackingUrl, p_status: status });
   if (error) return { ok: false, message: 'Tracking belum tersimpan. Pastikan shipment order sudah dibuat.' };
-  const { data: order } = await (access.supabase as any).from('commerce_orders').select('id, customer_id, contact_phone, status, payment_status, fulfillment_status, total_idr').eq('id', orderId).maybeSingle();
-  let whatsappMessage = '';
-  if (order?.customer_id) {
-    const [{ data: profile }, { data: shipment }] = await Promise.all([
-      (access.supabase as any).from('customer_profiles').select('business_name, whatsapp, phone').eq('id', order.customer_id).maybeSingle(),
-      (access.supabase as any).from('commerce_shipments').select('provider_code, tracking_number, tracking_url, status').eq('order_id', orderId).maybeSingle(),
-    ]);
-    const recipient = order.contact_phone || profile?.whatsapp || profile?.phone;
-    if (recipient) {
-      const notification = await sendWhatsAppTextTo(recipient, formatOrderStatusNotification(order, shipment ?? undefined));
-      whatsappMessage = notification.ok ? ' WhatsApp customer terkirim.' : notification.skipped ? ' WhatsApp belum dikirim: nomor/config belum tersedia.' : ' Tracking tersimpan, tetapi WhatsApp customer gagal dikirim.';
-    } else {
-      whatsappMessage = ' WhatsApp belum dikirim karena nomor customer belum tersedia.';
-    }
-  }
   revalidatePath('/admin');
   revalidatePath('/account/orders');
-  return { ok: true, message: 'Tracking order berhasil diperbarui.' + whatsappMessage };
+  return { ok: true, message: 'Tracking order berhasil diperbarui dan masuk antrean notifikasi.' };
 }
 export async function savePackageType(previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
   const id = String(formData.get('package_type_id') ?? '').trim();

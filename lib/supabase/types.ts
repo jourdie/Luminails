@@ -283,6 +283,7 @@ export type Database = {
           Returns: undefined;
         };
         cancel_checkout_order: { Args: { p_order_id: string; }; Returns: Json; };
+        apply_payment_event: { Args: { p_provider: string; p_provider_event_id: string; p_order_id: string; p_payment_status: string; p_payment_reference?: string | null; p_amount_idr?: number | null; p_failure_reason?: string | null; p_payload?: Json; }; Returns: Json; };
         create_checkout_order: { Args: { p_package_slug: string; p_quantity: number; p_address_id: string; p_customer_notes?: string | null; p_promotion_code?: string | null; p_shipping_method?: string; p_shipping_provider?: string | null; p_reward_sku_id?: string | null; p_reward_points?: number; p_idempotency_key?: string | null; p_selected_skus?: Json | null; }; Returns: Json; };
         set_admin_membership_status: {
           Args: { p_user_id: string; p_is_active: boolean; };

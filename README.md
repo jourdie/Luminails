@@ -88,7 +88,9 @@ Notifikasi order admin sekarang memakai Meta WhatsApp Cloud API melalui endpoint
 - `WHATSAPP_ADMIN_TO`
 - `WHATSAPP_WEBHOOK_SECRET`
 
-Payload lengkap mencakup nomor order, customer/account ID, channel, total, status order, pembayaran, fulfillment, waktu order, dan item produk. Di Supabase Dashboard buat Database Webhook untuk public.commerce_orders event INSERT ke https://<domain-vercel>/api/webhooks/order, lalu tambahkan header x-whatsapp-webhook-secret dengan nilai yang sama seperti WHATSAPP_WEBHOOK_SECRET. SUPABASE_SERVICE_ROLE_KEY dipakai server-side untuk membaca item order.
+Outbox menyimpan nomor order, customer/account ID, channel, total, status order, pembayaran, fulfillment, waktu order, dan nomor kontak. Di Supabase Dashboard buat Database Webhook untuk public.commerce_orders event INSERT ke https://<domain-vercel>/api/webhooks/order, lalu tambahkan header x-whatsapp-webhook-secret dengan nilai yang sama seperti WHATSAPP_WEBHOOK_SECRET. SUPABASE_SERVICE_ROLE_KEY dipakai server-side untuk claim dan mengirim antrean.
+
+Notification outbox juga dapat diproses melalui `POST /api/internal/notifications` dengan header `x-notification-worker-secret` yang sama dengan `INTERNAL_NOTIFICATION_WORKER_SECRET`. Endpoint ini hanya meng-claim channel WhatsApp; email dan Discord tetap menunggu adapter provider masing-masing. Jalankan endpoint tersebut dari Cloudflare Worker/Queue atau scheduler internal, dan jangan expose secret ke browser.
 
 ## Promotion engine
 

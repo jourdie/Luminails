@@ -1,6 +1,7 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { archiveCatalogCategory, createCatalogCategory, createCatalogSku, deleteCatalogSku, updateCatalogSku, type AdminActionState } from '../app/admin/actions';
 import type { AdminDashboard, AdminSku, CatalogProductType, CatalogStockStatus } from '../lib/admin';
 
@@ -23,8 +24,22 @@ const stockStatuses: Array<{ value: CatalogStockStatus; label: string }> = [
 const money = (value: number | null) => value == null ? '...' : 'Rp' + new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(value);
 const typeLabel = (value: CatalogProductType) => productTypes.find((item) => item.value === value)?.label ?? value;
 const stockLabel = (value: CatalogStockStatus) => stockStatuses.find((item) => item.value === value)?.label ?? value;
+const MAX_CATALOG_IMAGE_BYTES = 6 * 1024 * 1024;
+
+function validateCatalogImage(event: React.FormEvent<HTMLFormElement>) {
+  const fileInput = event.currentTarget.elements.namedItem('image_file');
+  if (!(fileInput instanceof HTMLInputElement) || !fileInput.files?.[0]) return true;
+  if (fileInput.files[0].size > MAX_CATALOG_IMAGE_BYTES) {
+    fileInput.setCustomValidity('Ukuran foto maksimal 6 MB.');
+    fileInput.reportValidity();
+    return false;
+  }
+  fileInput.setCustomValidity('');
+  return true;
+}
 
 export function CatalogListingConsole({ products, categories, brands, skus, canEdit }: { products: AdminDashboard['products']; categories: AdminDashboard['categories']; brands: AdminDashboard['brands']; skus: AdminSku[]; canEdit: boolean }) {
+  const router = useRouter();
   const [categoryState, createCategoryAction, categoryPending] = useActionState(createCatalogCategory, { ok: false, message: '' });
   const [archiveState, archiveCategoryAction, archivePending] = useActionState(archiveCatalogCategory, { ok: false, message: '' });
   const [createState, createAction, createPending] = useActionState(createCatalogSku, { ok: false, message: '' });
@@ -35,6 +50,9 @@ export function CatalogListingConsole({ products, categories, brands, skus, canE
   const [sort, setSort] = useState<'name' | 'sku' | 'price-low' | 'price-high' | 'stock'>('name');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  useEffect(() => {
+    if (categoryState.ok || archiveState.ok) router.refresh();
+  }, [archiveState.ok, categoryState.ok, router]);
   const productById = new Map(products.map((product) => [product.id, product]));
   const brandNames = Array.from(new Set(products.map((product) => product.brand))).sort();
   const normalizedQuery = query.trim().toLowerCase();
@@ -71,18 +89,18 @@ export function CatalogListingConsole({ products, categories, brands, skus, canE
           <label>Slug<input name="slug" placeholder="consumables" disabled={!canEdit} /></label>
           <label>Urutan<input name="sort_order" type="number" min="0" defaultValue="50" disabled={!canEdit} /></label>
           <button className="button button-outline" type="submit" disabled={!canEdit || categoryPending}>{categoryPending ? 'Menyimpan...' : 'Tambah kategori'}</button>
-          {categoryState.message && <small className={categoryState.ok ? 'action-success' : 'action-error'}>{categoryState.message}</small>}
+          {categoryState.message && <small className={categoryState.ok ? 'action-success' : 'action-error'} role="status" aria-live="polite">{categoryState.message}</small>}
         </form>
         <div className="catalog-category-list">
           <div className="catalog-category-head" role="row"><span>Kategori</span><span>Status</span><span>Aksi</span></div>
           {categories.map((category) => <div className="catalog-category-row" key={category.id}><span><strong>{category.name}</strong><small>{category.slug}  /  posisi {category.sort_order}</small></span><span>{category.is_active ? 'Aktif' : 'Diarsipkan'}</span>{category.is_active && <form action={archiveCategoryAction}><input type="hidden" name="category_id" value={category.id} /><button className="text-button danger-button" type="submit" disabled={!canEdit || archivePending}>Arsipkan</button></form>}</div>)}
-          {archiveState.message && <small className={archiveState.ok ? 'action-success' : 'action-error'}>{archiveState.message}</small>}
+          {archiveState.message && <small className={archiveState.ok ? 'action-success' : 'action-error'} role="status" aria-live="polite">{archiveState.message}</small>}
         </div>
       </div>
     </section>
     <section className="admin-panel">
       <div className="panel-heading"><div><p className="eyebrow">Create</p><h3>Tambah produk / SKU</h3></div><span className="notification-count">Brand + kategori wajib dipilih</span></div>
-      <form className="admin-crud-form catalog-create-form" action={createAction} encType="multipart/form-data">
+      <form className="admin-crud-form catalog-create-form" action={createAction} encType="multipart/form-data" onSubmit={validateCatalogImage}>
         <label>Brand<select name="brand_id" required disabled={!canEdit}><option value="">Pilih brand</option>{brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}</select><small className="field-help">Product induk dibuat otomatis berdasarkan brand + kategori.</small></label>
 
         <label>Kategori<select name="category_id" required disabled={!canEdit}><option value="">Pilih kategori</option>{categories.filter((category) => category.is_active).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select><small className="field-help">Satu SKU hanya memiliki satu kategori.</small></label>
@@ -131,7 +149,7 @@ function CatalogListingRow({ sku, product, categories, canEdit }: { sku: AdminSk
     
     <span className="catalog-number"><strong>{sku.stock_quantity}</strong><small>{stockLabel(sku.stock_status)}</small></span>
     <span><span className={`status-pill ${sku.is_active ? 'status-live' : 'status-draft'}`}>{sku.is_active ? 'Active' : 'Archived'}</span></span>
-    <span className="catalog-row-actions"><details><summary className="button button-outline">Edit</summary><form className="catalog-edit-form" action={formAction} encType="multipart/form-data"><input type="hidden" name="sku_id" value={sku.id} /><label>SKU<input name="sku" defaultValue={sku.sku} disabled={!canEdit} required /></label><label>Nama<input name="name" defaultValue={sku.name} disabled={!canEdit} required /></label><label>Kategori<select name="category_id" defaultValue={sku.category_id ?? ""} disabled={!canEdit} required>{categories.filter((category) => category.is_active).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label><input type="hidden" name="product_type" value={sku.product_type} /><label>Series<input name="series" defaultValue={sku.series ?? ''} disabled={!canEdit} /></label><label>Color<input name="color" defaultValue={sku.color ?? ''} disabled={!canEdit} /></label><label>Harga<input name="public_reference_price_idr" type="number" min="0" defaultValue={sku.public_reference_price_idr ?? ''} disabled={!canEdit} /></label><label>Stock qty<input name="stock_quantity" type="number" min="0" defaultValue={sku.stock_quantity} disabled={!canEdit} /></label><label>Status stok<select name="stock_status" defaultValue={sku.stock_status} disabled={!canEdit}>{stockStatuses.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label className="catalog-image-field">Ganti foto SKU<input name="image_file" type="file" accept="image/jpeg,image/png,image/webp" disabled={!canEdit} /><input type="hidden" name="current_image_url" value={sku.image_url ?? ''} /><small className="field-help">Kosongkan jika foto lama tetap dipakai.</small></label><label>Badge<input name="badge" defaultValue={sku.badge ?? ''} disabled={!canEdit} /></label><input type="hidden" name="sort_order" value={sku.sort_order} /><input type="hidden" name="is_active" value={sku.is_active ? 'on' : 'off'} /><div className="catalog-edit-actions"><small className={state.message ? (state.ok ? 'action-success' : 'action-error') : ''}>{state.message}</small><button className="button button-dark" type="submit" disabled={!canEdit || pending}>{pending ? 'Menyimpan...' : 'Simpan perubahan'}</button></div></form></details><form action={deleteAction} onSubmit={(event) => { if (!window.confirm(`Hapus ${sku.sku}? Jika sudah dipakai package/order, gunakan archive.`)) event.preventDefault(); }}><input type="hidden" name="sku_id" value={sku.id} /><button className="text-button danger-button" type="submit" disabled={!canEdit || deletePending}>{deletePending ? 'Menghapus...' : 'Hapus'}</button>{deleteState.message && <small className={deleteState.ok ? 'action-success' : 'action-error'}>{deleteState.message}</small>}</form></span>
+    <span className="catalog-row-actions"><details><summary className="button button-outline">Edit</summary><form className="catalog-edit-form" action={formAction} encType="multipart/form-data" onSubmit={validateCatalogImage}><input type="hidden" name="sku_id" value={sku.id} /><label>SKU<input name="sku" defaultValue={sku.sku} disabled={!canEdit} required /></label><label>Nama<input name="name" defaultValue={sku.name} disabled={!canEdit} required /></label><label>Kategori<select name="category_id" defaultValue={sku.category_id ?? ""} disabled={!canEdit} required>{categories.filter((category) => category.is_active).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label><input type="hidden" name="product_type" value={sku.product_type} /><label>Series<input name="series" defaultValue={sku.series ?? ''} disabled={!canEdit} /></label><label>Color<input name="color" defaultValue={sku.color ?? ''} disabled={!canEdit} /></label><label>Harga<input name="public_reference_price_idr" type="number" min="0" defaultValue={sku.public_reference_price_idr ?? ''} disabled={!canEdit} /></label><label>Stock qty<input name="stock_quantity" type="number" min="0" defaultValue={sku.stock_quantity} disabled={!canEdit} /></label><label>Status stok<select name="stock_status" defaultValue={sku.stock_status} disabled={!canEdit}>{stockStatuses.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label className="catalog-image-field">Ganti foto SKU<input name="image_file" type="file" accept="image/jpeg,image/png,image/webp" disabled={!canEdit} /><input type="hidden" name="current_image_url" value={sku.image_url ?? ''} /><small className="field-help">Kosongkan jika foto lama tetap dipakai.</small></label><label>Badge<input name="badge" defaultValue={sku.badge ?? ''} disabled={!canEdit} /></label><input type="hidden" name="sort_order" value={sku.sort_order} /><input type="hidden" name="is_active" value={sku.is_active ? 'on' : 'off'} /><div className="catalog-edit-actions"><small className={state.message ? (state.ok ? 'action-success' : 'action-error') : ''}>{state.message}</small><button className="button button-dark" type="submit" disabled={!canEdit || pending}>{pending ? 'Menyimpan...' : 'Simpan perubahan'}</button></div></form></details><form action={deleteAction} onSubmit={(event) => { if (!window.confirm(`Hapus ${sku.sku}? Jika sudah dipakai package/order, gunakan archive.`)) event.preventDefault(); }}><input type="hidden" name="sku_id" value={sku.id} /><button className="text-button danger-button" type="submit" disabled={!canEdit || deletePending}>{deletePending ? 'Menghapus...' : 'Hapus'}</button>{deleteState.message && <small className={deleteState.ok ? 'action-success' : 'action-error'}>{deleteState.message}</small>}</form></span>
   </div>;
 }
 
