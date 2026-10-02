@@ -7,7 +7,7 @@ import { formatIDR, selectQuantityPrice } from '../../lib/packages';
 import { createClient } from '../../lib/supabase/server';
 import { getPublicPromotions } from '../../lib/promotions-server';
 import { PromoNotice } from '../../components/promo-notice';
-import { getAccountContext } from '../../lib/account-server';
+import { getAccountContext, getCurrentUser } from '../../lib/account-server';
 import { calculateEarnedPoints } from '../../lib/loyalty-engine';
 import { catalogBrandsMatch } from '../../lib/brand-matching';
 
@@ -41,10 +41,12 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   const params = await searchParams;
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) redirect('/auth?next=/checkout');
   const supabase = await createClient();
-  const { data: authData } = await supabase.auth.getUser();
-  if (!authData.user) redirect(`/auth?next=${encodeURIComponent('/checkout?' + new URLSearchParams(params as Record<string, string>).toString())}`);
-  const item = params.package ? await getPackageBySlugFromDatabase(params.package) : undefined;
-  const account = await getAccountContext();
+  const user = await getCurrentUser();
+  if (!user) redirect(`/auth?next=${encodeURIComponent('/checkout?' + new URLSearchParams(params as Record<string, string>).toString())}`);
+  const [item, account] = await Promise.all([
+    params.package ? getPackageBySlugFromDatabase(params.package) : Promise.resolve(undefined),
+    getAccountContext(),
+  ]);
   if (!item) return <><SiteNavigation identity={account.identity} profile={account.profile} needsProfile={account.needsProfile} tierSummary={account.tierSummary} /><main className={'checkout-page'}><div className={'checkout-shell'}><h1>Pilih package<br /><em>untuk mulai.</em></h1><Link className={'brand-button brand-button-dark'} href={'/packages'}>Browse packages <span>-&gt;</span></Link></div></main></>;
   const quantity = Math.max(1, Math.min(1000, Number(params.quantity ?? 1) || 1));
   const packageUnitPrice = item.pricingModel === 'quantity_range' ? (selectQuantityPrice(item.quantityPrices, quantity) ?? item.price) : item.price;
@@ -64,14 +66,14 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
         ? 'Isi SKU melebihi quantity package. Kurangi ' + (selectedBottleTotal - selectionTarget) + ' botol sebelum checkout.'
         : 'Isi SKU belum lengkap. Tambahkan ' + (selectionTarget - selectedBottleTotal) + ' botol sebelum checkout.'
       : null;
-  const [{ data: addresses }, { data: loyalty }, { data: rewards }, { data: pointSettings }, addOns] = await Promise.all([
+  const [{ data: addresses }, { data: loyalty }, { data: rewards }, { data: pointSettings }, addOns, promotions] = await Promise.all([
     supabase.from('customer_addresses' as never).select('id, label, recipient_name, phone, address_line, city, province, postal_code, is_default').order('is_default', { ascending: false }).order('created_at', { ascending: false }),
-    supabase.from('loyalty_accounts').select('available_points').eq('customer_id', authData.user.id).maybeSingle(),
+    supabase.from('loyalty_accounts').select('available_points').eq('customer_id', user.id).maybeSingle(),
     supabase.from('loyalty_reward_catalog' as never).select('sku_id, points_cost, reward_name, reward_stock, max_redemption_quantity, minimum_order_value_idr, minimum_customer_tier_id, starts_at, ends_at, catalog_skus(name, catalog_products!inner(brand, is_published))').eq('is_active', true),
     supabase.from('loyalty_point_settings' as never).select('point_unit_value_idr').eq('key', 'default').maybeSingle(),
     getPackageAddOnsFromDatabase(item.brand),
+    getPublicPromotions(),
   ]);
-  const promotions = await getPublicPromotions();
   const rewardOptions = ((rewards ?? []) as unknown as Array<{ sku_id: string; points_cost: number; reward_name?: string | null; reward_stock?: number; max_redemption_quantity?: number; minimum_order_value_idr?: number; starts_at?: string | null; ends_at?: string | null; catalog_skus?: { name?: string; catalog_products?: { brand?: string; is_published?: boolean } | { brand?: string; is_published?: boolean }[] | null } | null }>).filter((reward) => {
     const product = Array.isArray(reward.catalog_skus?.catalog_products) ? reward.catalog_skus?.catalog_products[0] : reward.catalog_skus?.catalog_products;
     return product?.is_published !== false && catalogBrandsMatch(product?.brand, item.brand) && (!reward.starts_at || new Date(reward.starts_at).getTime() <= Date.now()) && (!reward.ends_at || new Date(reward.ends_at).getTime() > Date.now());

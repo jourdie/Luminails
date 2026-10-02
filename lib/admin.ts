@@ -165,48 +165,50 @@ export async function getAdminDashboard(): Promise<AdminDashboard> {
   const canInventory = isOwner || permissions.inventory;
   const canSettings = isOwner || permissions.settings;
   const adminDb = supabase as any;
+  const dashboardStartedAt = Date.now();
+  console.log(JSON.stringify({ event: 'admin_dashboard_queries_start', access: 'granted', role: membership.role, permissions }));
 
-  const [productsResponse, categoriesResponse, ordersResponse, shipmentsResponse, notificationsResponse, pricingTiersResponse, promotionsResponse, membershipsResponse, brandsResponse, packagesResponse, packageItemsResponse, packageAllowedSkusResponse, packageImagesResponse, packagePricesResponse, packageQuantityPricesResponse, skusResponse, locationsResponse, stockResponse, settingsResponse, customerTiersResponse, customersResponse, accountsResponse, rewardsResponse, ledgerResponse, redemptionsResponse, loyaltySettingsResponse, packageTypesResponse, packageEligibilityResponse, packageBenefitsResponse, packageBenefitAllowedSkusResponse, packageTierBenefitsResponse, packageTierBenefitSkusResponse, auditLogsResponse, recommendationsResponse, trustedLogosResponse] = await Promise.all([
+  const [productsResponse, categoriesResponse, ordersResponse, shipmentsResponse, notificationsResponse, pricingTiersResponse, promotionsResponse, membershipsResponse, brandsResponse, packagesResponse, packageItemsResponse, packageAllowedSkusResponse, packageImagesResponse, packagePricesResponse, packageQuantityPricesResponse, skusResponse, locationsResponse, stockResponse, settingsResponse, customerTiersResponse, customersResponse, accountsResponse, rewardsResponse, ledgerResponse, redemptionsResponse, loyaltySettingsResponse, packageTypesResponse, packageEligibilityResponse, packageBenefitsResponse, packageBenefitAllowedSkusResponse, packageTierBenefitsResponse, packageTierBenefitSkusResponse, auditLogsResponse, recommendationsResponse, trustedLogosResponse, pointLotsResponse] = await Promise.all([
     (canCatalog || canPackages) ? supabase.from('catalog_products').select('id, name, brand, category, category_id, is_published').order('sort_order').limit(50) : Promise.resolve({ data: [], error: null }),
-    canCatalog ? supabase.from('catalog_categories').select('id, slug, name, sort_order, is_active').order('sort_order') : Promise.resolve({ data: [], error: null }),
-    canOrders ? (supabase as any).from('commerce_orders').select('id, customer_id, status, payment_status, fulfillment_status, total_idr, subtotal_idr, discount_idr, customer_notes, contact_phone, created_at').order('created_at', { ascending: false }).limit(500) : Promise.resolve({ data: [], error: null }),
-    canOrders ? supabase.from('commerce_shipments').select('order_id, provider_code, tracking_number, status').limit(500) : Promise.resolve({ data: [], error: null }),
+    canCatalog ? supabase.from('catalog_categories').select('id, slug, name, sort_order, is_active').order('sort_order').limit(100) : Promise.resolve({ data: [], error: null }),
+    canOrders ? (supabase as any).from('commerce_orders').select('id, customer_id, status, payment_status, fulfillment_status, total_idr, subtotal_idr, discount_idr, customer_notes, contact_phone, created_at').order('created_at', { ascending: false }).limit(200) : Promise.resolve({ data: [], error: null }),
+    canOrders ? supabase.from('commerce_shipments').select('order_id, provider_code, tracking_number, status').limit(200) : Promise.resolve({ data: [], error: null }),
     (canOrders || canNotifications) ? supabase.from('admin_notifications').select('id, title, body, read_at, created_at').order('created_at', { ascending: false }).limit(30) : Promise.resolve({ data: [], error: null }),
     canPricing ? supabase.from('pricing_tiers').select('id, code, name, minimum_lifetime_spend_idr, minimum_paid_order_count, price_visibility, customer_role, is_active, sort_order').order('sort_order').limit(100) : Promise.resolve({ data: [], error: null }),
     canPromotions ? supabase.from('commerce_promotions').select('id, code, name, promotion_type, audience_type, discount_type, discount_value, bundle_price_idr, minimum_order_amount_idr, minimum_item_quantity, repeat_order_min_count, voucher_code, usage_limit, usage_limit_per_customer, usage_count, starts_at, ends_at, status, is_stackable, is_active, created_at, updated_at').order('starts_at', { ascending: false }).limit(50) : Promise.resolve({ data: [], error: null }),
     isOwner ? supabase.rpc('get_admin_memberships') : Promise.resolve({ data: [], error: null }),
     (canCatalog || canPackages) ? supabase.from('catalog_brands').select('id, slug, name, tagline, description, visual_tone, is_published, sort_order').order('sort_order').limit(200) : Promise.resolve({ data: [], error: null }),
     canPackages ? (supabase as any).from('commerce_packages').select('id, brand_id, package_type_id, slug, title, audience, description, long_description, price_idr, compare_at_price_idr, badge, visual_tone, delivery_note, selection_mode, selection_capacity, selection_minimum, selection_maximum, pricing_model, status, sort_order, starts_at, ends_at, minimum_quantity, minimum_subtotal_idr, stackable, points_earning_mode, points_multiplier, allow_reward_redemption, usage_count').order('sort_order').limit(100) : Promise.resolve({ data: [], error: null }),
-    canPackages ? supabase.from('commerce_package_items').select('id, package_id, sku_id, item_name_snapshot, item_note, quantity, sort_order').order('sort_order').limit(2000) : Promise.resolve({ data: [], error: null }),
-    canPackages ? supabase.from('commerce_package_allowed_skus').select('package_id, sku_id, sort_order').order('sort_order').limit(2000) : Promise.resolve({ data: [], error: null }),
-    canPackages ? supabase.from('commerce_package_images').select('id, package_id, image_url, alt_text, sort_order').order('sort_order').limit(500) : Promise.resolve({ data: [], error: null }),
-    canPackages ? supabase.from('commerce_package_prices').select('id, package_id, pricing_tier_id, unit_price_idr, effective_from, effective_until, is_active').eq('is_active', true).lte('effective_from', new Date().toISOString()).or('effective_until.is.null,effective_until.gt.' + new Date().toISOString()).order('effective_from', { ascending: false }).limit(1000) : Promise.resolve({ data: [], error: null }),
-    canPackages ? adminDb.from('commerce_package_quantity_prices').select('id, package_id, minimum_quantity, maximum_quantity, unit_price_idr, sort_order, is_active').eq('is_active', true).order('minimum_quantity') : Promise.resolve({ data: [], error: null }),
-    (canInventory || canPackages || permissions.catalog) ? supabase.from('catalog_skus').select('id, product_id, sku, name, category_label, category_id, series, color, public_reference_price_idr, badge, image_url, product_type, counts_toward_bottle_moq, stock_status, stock_quantity, is_active, sort_order').order('sort_order').limit(2000) : Promise.resolve({ data: [], error: null }),
-    canInventory ? supabase.from('inventory_locations').select('id, code, name, is_active').order('code') : Promise.resolve({ data: [], error: null }),
-    canInventory ? supabase.from('inventory_stock').select('id, location_id, sku_id, on_hand_quantity, reserved_quantity, reorder_point, updated_at').order('updated_at', { ascending: false }) : Promise.resolve({ data: [], error: null }),
+    canPackages ? supabase.from('commerce_package_items').select('id, package_id, sku_id, item_name_snapshot, item_note, quantity, sort_order').order('sort_order').limit(1000) : Promise.resolve({ data: [], error: null }),
+    canPackages ? supabase.from('commerce_package_allowed_skus').select('package_id, sku_id, sort_order').order('sort_order').limit(1000) : Promise.resolve({ data: [], error: null }),
+    canPackages ? supabase.from('commerce_package_images').select('id, package_id, image_url, alt_text, sort_order').order('sort_order').limit(300) : Promise.resolve({ data: [], error: null }),
+    canPackages ? supabase.from('commerce_package_prices').select('id, package_id, pricing_tier_id, unit_price_idr, effective_from, effective_until, is_active').eq('is_active', true).lte('effective_from', new Date().toISOString()).or('effective_until.is.null,effective_until.gt.' + new Date().toISOString()).order('effective_from', { ascending: false }).limit(500) : Promise.resolve({ data: [], error: null }),
+    canPackages ? adminDb.from('commerce_package_quantity_prices').select('id, package_id, minimum_quantity, maximum_quantity, unit_price_idr, sort_order, is_active').eq('is_active', true).order('minimum_quantity').limit(1000) : Promise.resolve({ data: [], error: null }),
+    (canInventory || canPackages || permissions.catalog) ? supabase.from('catalog_skus').select('id, product_id, sku, name, category_label, category_id, series, color, public_reference_price_idr, badge, image_url, product_type, counts_toward_bottle_moq, stock_status, stock_quantity, is_active, sort_order').order('sort_order').limit(1000) : Promise.resolve({ data: [], error: null }),
+    canInventory ? supabase.from('inventory_locations').select('id, code, name, is_active').order('code').limit(100) : Promise.resolve({ data: [], error: null }),
+    canInventory ? supabase.from('inventory_stock').select('id, location_id, sku_id, on_hand_quantity, reserved_quantity, reorder_point, updated_at').order('updated_at', { ascending: false }).limit(1000) : Promise.resolve({ data: [], error: null }),
     canSettings ? supabase.from('commerce_store_settings').select('key, value, is_public, updated_at').eq('key', 'whatsapp').maybeSingle() : Promise.resolve({ data: null, error: null }),
     canPricing || canOrders ? adminDb.from('customer_tiers').select('id, code, name, minimum_rolling_spend_idr, maximum_rolling_spend_idr, rolling_period_months, point_multiplier, points_per_10000_idr, description, benefits_description, is_active, priority').order('minimum_rolling_spend_idr', { ascending: true }).limit(100) : Promise.resolve({ data: [], error: null }),
-    canOrders ? adminDb.from('customer_profiles').select('id, email, display_name, business_name, phone, whatsapp, address, studio_type, additional_info, status, pricing_tier_id, customer_tier_id, auto_customer_tier_id, manual_tier_override_enabled, manual_tier_reason, manual_tier_starts_at, manual_tier_expires_at, lifetime_paid_amount_idr, paid_order_count, created_at').order('created_at', { ascending: false }).limit(500) : Promise.resolve({ data: [], error: null }),
-    canOrders ? adminDb.from('loyalty_accounts').select('customer_id, available_points, lifetime_earned_points, lifetime_redeemed_points') : Promise.resolve({ data: [], error: null }),
-    canPricing ? adminDb.from('loyalty_reward_catalog').select('id, sku_id, reward_name, description, points_cost, hpp_idr, normal_selling_price_idr, minimum_customer_tier_id, minimum_order_value_idr, max_redemption_quantity, reward_stock, starts_at, ends_at, is_active, redemption_count').order('created_at', { ascending: false }).limit(500) : Promise.resolve({ data: [], error: null }),
-    canPricing || canOrders ? adminDb.from('loyalty_ledger').select('id, customer_id, order_id, redemption_id, entry_type, points_delta, balance_before, balance_after, description, reference_text, expires_at, created_by, created_at').order('created_at', { ascending: false }).limit(1000) : Promise.resolve({ data: [], error: null }),
-    canOrders ? adminDb.from('loyalty_redemptions').select('id, customer_id, order_id, sku_id, points_redeemed, points_total, quantity, status, created_at').order('created_at', { ascending: false }).limit(500) : Promise.resolve({ data: [], error: null }),
+    canOrders ? adminDb.from('customer_profiles').select('id, email, display_name, business_name, phone, whatsapp, address, studio_type, additional_info, status, pricing_tier_id, customer_tier_id, auto_customer_tier_id, manual_tier_override_enabled, manual_tier_reason, manual_tier_starts_at, manual_tier_expires_at, lifetime_paid_amount_idr, paid_order_count, created_at').order('created_at', { ascending: false }).limit(300) : Promise.resolve({ data: [], error: null }),
+    canOrders ? adminDb.from('loyalty_accounts').select('customer_id, available_points, lifetime_earned_points, lifetime_redeemed_points').limit(1000) : Promise.resolve({ data: [], error: null }),
+    canPricing ? adminDb.from('loyalty_reward_catalog').select('id, sku_id, reward_name, description, points_cost, hpp_idr, normal_selling_price_idr, minimum_customer_tier_id, minimum_order_value_idr, max_redemption_quantity, reward_stock, starts_at, ends_at, is_active, redemption_count').order('created_at', { ascending: false }).limit(200) : Promise.resolve({ data: [], error: null }),
+    canPricing || canOrders ? adminDb.from('loyalty_ledger').select('id, customer_id, order_id, redemption_id, entry_type, points_delta, balance_before, balance_after, description, reference_text, expires_at, created_by, created_at').order('created_at', { ascending: false }).limit(500) : Promise.resolve({ data: [], error: null }),
+    canOrders ? adminDb.from('loyalty_redemptions').select('id, customer_id, order_id, sku_id, points_redeemed, points_total, quantity, status, created_at').order('created_at', { ascending: false }).limit(300) : Promise.resolve({ data: [], error: null }),
     canPricing ? adminDb.from('loyalty_point_settings').select('key, point_unit_value_idr, expiry_months, reward_cost_warning_percent, tier_rolling_period_months, automatic_tier_recalculation, allow_manual_point_adjustment, require_adjustment_reason').eq('key', 'default').maybeSingle() : Promise.resolve({ data: null, error: null }),
     canPackages ? adminDb.from('commerce_package_types').select('id, slug, name, description, is_active, sort_order').order('sort_order').limit(100) : Promise.resolve({ data: [], error: null }),
-    canPackages ? adminDb.from('commerce_package_eligibility').select('id, package_id, customer_tier_id, customer_id, brand_id, sku_id, minimum_quantity, minimum_order_value_idr').order('created_at').limit(2000) : Promise.resolve({ data: [], error: null }),
-    canPackages ? adminDb.from('commerce_package_benefits').select('id, package_id, customer_tier_id, reward_sku_id, quantity, variant_rule, notes').order('created_at').limit(2000) : Promise.resolve({ data: [], error: null }),
-    canPackages ? adminDb.from('commerce_package_benefit_allowed_skus').select('benefit_id, sku_id, sort_order').order('sort_order').limit(2000) : Promise.resolve({ data: [], error: null }),
-    canPackages ? adminDb.from('commerce_package_tier_benefits').select('id, package_id, pricing_tier_id, benefit_type, quantity, label, variant_rule, fixed_sku_id').order('created_at').limit(2000) : Promise.resolve({ data: [], error: null }),
-    canPackages ? adminDb.from('commerce_package_tier_benefit_skus').select('benefit_id, sku_id, sort_order').order('sort_order').limit(2000) : Promise.resolve({ data: [], error: null }),
+    canPackages ? adminDb.from('commerce_package_eligibility').select('id, package_id, customer_tier_id, customer_id, brand_id, sku_id, minimum_quantity, minimum_order_value_idr').order('created_at').limit(1000) : Promise.resolve({ data: [], error: null }),
+    canPackages ? adminDb.from('commerce_package_benefits').select('id, package_id, customer_tier_id, reward_sku_id, quantity, variant_rule, notes').order('created_at').limit(1000) : Promise.resolve({ data: [], error: null }),
+    canPackages ? adminDb.from('commerce_package_benefit_allowed_skus').select('benefit_id, sku_id, sort_order').order('sort_order').limit(1000) : Promise.resolve({ data: [], error: null }),
+    canPackages ? adminDb.from('commerce_package_tier_benefits').select('id, package_id, pricing_tier_id, benefit_type, quantity, label, variant_rule, fixed_sku_id').order('created_at').limit(1000) : Promise.resolve({ data: [], error: null }),
+    canPackages ? adminDb.from('commerce_package_tier_benefit_skus').select('benefit_id, sku_id, sort_order').order('sort_order').limit(1000) : Promise.resolve({ data: [], error: null }),
     canPricing || canOrders || canPackages ? adminDb.from('admin_audit_logs').select('id, actor_id, action, entity_type, entity_id, old_value, new_value, created_at').order('created_at', { ascending: false }).limit(500) : Promise.resolve({ data: [], error: null }),
     canPackages ? adminDb.from('commerce_recommendations').select('id, placement, package_id, sku_id, priority, is_active, starts_at, ends_at').order('priority').order('created_at').limit(500) : Promise.resolve({ data: [], error: null }),
     canSettings ? adminDb.from('commerce_trusted_logos').select('id, name, image_url, alt_text, sort_order, is_active').order('sort_order').order('name').limit(100) : Promise.resolve({ data: [], error: null }),
-  ]);
+    canOrders ? adminDb.from('loyalty_point_lots').select('customer_id, remaining_points, expires_at').gt('remaining_points', 0).order('expires_at').limit(1000) : Promise.resolve({ data: [], error: null }),
+  ].map((query) => Promise.resolve(query).catch((error) => ({ data: [], error }))));
 
-  const pointLotsResponse = canOrders
-    ? await adminDb.from('loyalty_point_lots').select('customer_id, remaining_points, expires_at').gt('remaining_points', 0).order('expires_at')
-    : { data: [], error: null };
+  const dashboardResponses = [productsResponse, categoriesResponse, ordersResponse, shipmentsResponse, notificationsResponse, pricingTiersResponse, promotionsResponse, membershipsResponse, brandsResponse, packagesResponse, packageItemsResponse, packageAllowedSkusResponse, packageImagesResponse, packagePricesResponse, packageQuantityPricesResponse, skusResponse, locationsResponse, stockResponse, settingsResponse, customerTiersResponse, customersResponse, accountsResponse, rewardsResponse, ledgerResponse, redemptionsResponse, loyaltySettingsResponse, packageTypesResponse, packageEligibilityResponse, packageBenefitsResponse, packageBenefitAllowedSkusResponse, packageTierBenefitsResponse, packageTierBenefitSkusResponse, auditLogsResponse, recommendationsResponse, trustedLogosResponse, pointLotsResponse] as Array<{ data?: unknown[] | null; error?: unknown | null }>;
+  console.log(JSON.stringify({ event: 'admin_dashboard_queries_complete', durationMs: Date.now() - dashboardStartedAt, responseRows: dashboardResponses.reduce((total, response) => total + (Array.isArray(response.data) ? response.data.length : response.data ? 1 : 0), 0), responseErrors: dashboardResponses.filter((response) => response.error).length }));
 
   const brands = (brandsResponse.data ?? []) as AdminBrand[];
   const brandById = new Map(brands.map((brand) => [brand.id, brand.name]));
@@ -215,6 +217,19 @@ export async function getAdminDashboard(): Promise<AdminDashboard> {
   const locations = (locationsResponse.data ?? []) as AdminInventoryLocation[];
   const locationById = new Map(locations.map((location) => [location.id, location]));
   const stock = (stockResponse.data ?? []) as Array<{ id: string; location_id: string; sku_id: string; on_hand_quantity: number; reserved_quantity: number; reorder_point: number; updated_at: string }>;
+  const shipmentByOrderId = new Map(((shipmentsResponse.data ?? []) as Array<{ order_id: string; provider_code: string | null; tracking_number: string | null; status: string }>).map((shipment) => [shipment.order_id, shipment]));
+  const packageBenefitAllowedIds = new Map<string, string[]>();
+  for (const allowed of (packageBenefitAllowedSkusResponse.data ?? []) as AdminPackageBenefitAllowedSku[]) {
+    const current = packageBenefitAllowedIds.get(allowed.benefit_id) ?? [];
+    current.push(allowed.sku_id);
+    packageBenefitAllowedIds.set(allowed.benefit_id, current);
+  }
+  const packageTierBenefitAllowedIds = new Map<string, string[]>();
+  for (const allowed of (packageTierBenefitSkusResponse.data ?? []) as AdminPackageTierBenefitSku[]) {
+    const current = packageTierBenefitAllowedIds.get(allowed.benefit_id) ?? [];
+    current.push(allowed.sku_id);
+    packageTierBenefitAllowedIds.set(allowed.benefit_id, current);
+  }
   const settingsRow = settingsResponse.data as { value?: { phone?: string; message?: string }; is_public?: boolean; updated_at?: string } | null;
   const customerTiers = (customerTiersResponse.data ?? []) as AdminCustomerTier[];
   const loyaltySettings = (loyaltySettingsResponse.data ?? null) as AdminLoyaltySettings | null;
@@ -254,7 +269,7 @@ export async function getAdminDashboard(): Promise<AdminDashboard> {
     configured: true, access: 'granted', role: membership.role, permissions, identity,
     products: (productsResponse.data ?? []) as AdminProduct[],
     categories: (categoriesResponse.data ?? []) as AdminCatalogCategory[],
-    orders: ((ordersResponse.data ?? []) as AdminOrder[]).map((order) => ({ ...order, shipment: ((shipmentsResponse.data ?? []) as Array<{ order_id: string; provider_code: string | null; tracking_number: string | null; status: string }>).find((shipment) => shipment.order_id === order.id) ?? null })),
+    orders: ((ordersResponse.data ?? []) as AdminOrder[]).map((order) => ({ ...order, shipment: shipmentByOrderId.get(order.id) ?? null })),
     notifications: (notificationsResponse.data ?? []) as AdminNotification[],
     pricingTiers: (pricingTiersResponse.data ?? []) as AdminPricingTier[],
     promotions: (promotionsResponse.data ?? []) as AdminPromotion[],
@@ -278,9 +293,9 @@ export async function getAdminDashboard(): Promise<AdminDashboard> {
     loyaltySettings,
     packageTypes: (packageTypesResponse.data ?? []) as AdminPackageType[],
     packageEligibility: (packageEligibilityResponse.data ?? []) as AdminPackageEligibility[],
-    packageBenefits: ((packageBenefitsResponse.data ?? []) as AdminPackageBenefit[]).map((benefit) => ({ ...benefit, allowed_sku_ids: (packageBenefitAllowedSkusResponse.data ?? []).filter((allowed: AdminPackageBenefitAllowedSku) => allowed.benefit_id === benefit.id).sort((a: AdminPackageBenefitAllowedSku, b: AdminPackageBenefitAllowedSku) => a.sort_order - b.sort_order).map((allowed: AdminPackageBenefitAllowedSku) => allowed.sku_id) })),
+    packageBenefits: ((packageBenefitsResponse.data ?? []) as AdminPackageBenefit[]).map((benefit) => ({ ...benefit, allowed_sku_ids: packageBenefitAllowedIds.get(benefit.id) ?? [] })),
     packageBenefitAllowedSkus: (packageBenefitAllowedSkusResponse.data ?? []) as AdminPackageBenefitAllowedSku[],
-    packageTierBenefits: ((packageTierBenefitsResponse.data ?? []) as AdminPackageTierBenefit[]).map((benefit) => ({ ...benefit, allowed_sku_ids: (packageTierBenefitSkusResponse.data ?? []).filter((allowed: AdminPackageTierBenefitSku) => allowed.benefit_id === benefit.id).sort((a: AdminPackageTierBenefitSku, b: AdminPackageTierBenefitSku) => a.sort_order - b.sort_order).map((allowed: AdminPackageTierBenefitSku) => allowed.sku_id) })),
+    packageTierBenefits: ((packageTierBenefitsResponse.data ?? []) as AdminPackageTierBenefit[]).map((benefit) => ({ ...benefit, allowed_sku_ids: packageTierBenefitAllowedIds.get(benefit.id) ?? [] })),
     packageTierBenefitSkus: (packageTierBenefitSkusResponse.data ?? []) as AdminPackageTierBenefitSku[],
     trustedLogos: (trustedLogosResponse.data ?? []) as AdminTrustedLogo[],
     auditLogs: (auditLogsResponse.data ?? []) as AdminAuditLog[],

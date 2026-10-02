@@ -8,14 +8,16 @@ import type { CustomerProfile } from '../lib/account';
 import type { StorefrontPromotion } from '../lib/promotions-server';
 import type { AccountTierSummary } from '../lib/account-server';
 import type { BrandPackage } from '../lib/packages';
+import type { PackageRecommendation } from '../lib/packages';
 import type { TrustedLogo } from '../lib/trusted-logos';
 import { QuantityPriceBanner } from './quantity-price-banner';
 import { PromoNotice } from './promo-notice';
 import { HomeFaq } from './home-faq';
 import { CustomerTestimonials } from './customer-testimonials';
 import { SiteNavigation } from './site-navigation';
+import { PackageRecommendations } from './package-recommendations';
 
-export function Storefront({ products, packages, promotions, trustedLogos = [], identity, profile, needsProfile, tierSummary = null }: { products: CatalogProduct[]; packages: BrandPackage[]; promotions: StorefrontPromotion[]; trustedLogos?: TrustedLogo[]; identity: AccountIdentityData | null; profile: CustomerProfile | null; needsProfile: boolean; tierSummary?: AccountTierSummary | null }) {
+export function Storefront({ products, packages, promotions, recommendations = [], trustedLogos = [], identity, profile, needsProfile, tierSummary = null }: { products: CatalogProduct[]; packages: BrandPackage[]; promotions: StorefrontPromotion[]; recommendations?: PackageRecommendation[]; trustedLogos?: TrustedLogo[]; identity: AccountIdentityData | null; profile: CustomerProfile | null; needsProfile: boolean; tierSummary?: AccountTierSummary | null }) {
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('featured');
@@ -65,6 +67,7 @@ export function Storefront({ products, packages, promotions, trustedLogos = [], 
         <section className="signal-band" id="how-it-works"><div className="signal-intro"><span className="signal-mark">*</span><p>Order berulang<br /><em>tanpa mulai dari nol.</em></p></div><div className="signal-item"><span>01</span><p><b>Harga yang rapi</b>Tier dan harga akunmu muncul otomatis.</p></div><div className="signal-item"><span>02</span><p><b>Review sebelum bayar</b>Ongkir final dikonfirmasi setelah allocation.</p></div><div className="signal-item"><span>03</span><p><b>Repeat semudah satu klik</b>Riwayat order jadi katalog personalmu.</p></div></section>
 
         <QuantityPriceBanner packages={packages} compact />
+        <PackageRecommendations items={recommendations} variant="home" />
         <section className="catalog-section section-pad" id="catalog">
           <div className="section-heading"><div><p className="eyebrow">SKU reference</p><h2>See what can<br /><em>fill your package.</em></h2></div><p className="section-intro">SKU hanya untuk katalog digital. Cari nama, series, atau color reference seperti red / maroon; checkout tetap dilakukan melalui package.</p></div>
           <div className="catalog-toolbar"><label className="search-box"><span aria-hidden="true">⌕</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari produk atau SKU" aria-label="Cari produk atau SKU" /></label><div className="filter-list" role="group" aria-label="Filter kategori">{[['all', 'Semua'], ['gel', 'Color gel'], ['prep', 'Prep'], ['tools', 'Tools']].map(([value, label]) => <button key={value} className={`filter-chip${filter === value ? ' is-active' : ''}`} onClick={() => setFilter(value)}>{label}</button>)}</div><label className="sort-select">Urutkan <select value={sort} onChange={(event) => setSort(event.target.value)} aria-label="Urutkan produk"><option value="featured">Pilihan kami</option><option value="price-low">Harga terendah</option><option value="price-high">Harga tertinggi</option></select></label></div>
@@ -80,6 +83,7 @@ export function Storefront({ products, packages, promotions, trustedLogos = [], 
       <footer className="site-footer section-pad"><a className="brand" href="/">luminails<span className="brand-dot">.</span></a><p>Nail supply untuk tangan yang selalu bekerja.</p><div className="footer-links"><a href="/catalog">Catalog</a><a href="/about">About us</a><a href="#how-it-works">Cara kerja</a><a href="#faq">FAQ</a></div><small>© 2026 Luminails Commerce · Untuk salon, nail artist, dan studio kecantikan</small></footer>
 
       {loginOpen && <><div className="modal-backdrop" onClick={() => setLoginOpen(false)}></div><section className="login-modal is-open" role="dialog" aria-modal="true" aria-labelledby="login-title"><button className="icon-button modal-close" onClick={() => setLoginOpen(false)} aria-label="Tutup">×</button><span className="modal-kicker">LUMINAILS / CUSTOMER</span><h2 id="login-title">Harga yang mengikuti<br /><em>cara kerjamu.</em></h2><p>Masuk untuk melihat tier harga, menyimpan alamat studio, dan mengulang order lebih cepat.</p><Link className="button button-dark button-full" href="/auth" onClick={() => setLoginOpen(false)}>Lanjut dengan email <span>-&gt;</span></Link><button className="button button-outline button-full" onClick={() => setLoginOpen(false)}>Lihat-lihat dulu</button><small>User baru mulai dari harga standard. Benefit akun bertambah sesuai riwayat belanja dan tier customer.</small></section></>}
+      {loginOpen && <button type="button" className="modal-backdrop" aria-label="Tutup dialog login" onClick={() => setLoginOpen(false)} />}
       <div className={`toast${toast ? ' is-visible' : ''}`} role="status" aria-live="polite">{toast}</div>
     </>
   );

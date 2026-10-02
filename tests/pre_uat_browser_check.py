@@ -10,16 +10,19 @@ BASE_URL = os.environ.get("BASE_URL", "http://127.0.0.1:3210").rstrip("/") + "/"
 def audit_page(page, path):
     console_errors = []
     page_errors = []
+    failed_requests = []
     page.on("console", lambda message: console_errors.append(message.text) if message.type == "error" else None)
     page.on("pageerror", lambda error: page_errors.append(str(error)))
-    page.goto(urljoin(BASE_URL, path), wait_until="networkidle")
+    page.on("requestfailed", lambda request: failed_requests.append(f"{request.url}: {request.failure}"))
+    page.goto(urljoin(BASE_URL, path), wait_until="domcontentloaded")
+    page.wait_for_timeout(500)
     overflow = page.evaluate("""() => ({
       documentWidth: document.documentElement.scrollWidth,
       viewportWidth: document.documentElement.clientWidth,
       bodyWidth: document.body.scrollWidth
     })""")
     assert overflow["documentWidth"] <= overflow["viewportWidth"] + 1, f"horizontal overflow on {path}: {overflow}"
-    assert not console_errors, f"console errors on {path}: {console_errors}"
+    assert not console_errors, f"console errors on {path}: {console_errors}; failed requests: {failed_requests}"
     assert not page_errors, f"page errors on {path}: {page_errors}"
 
 

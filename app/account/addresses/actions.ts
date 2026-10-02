@@ -20,11 +20,26 @@ export async function saveAddress(_previous: AddressActionState, formData: FormD
   const notes = String(formData.get('notes') ?? '').trim() || null;
   const isDefault = formData.get('is_default') === 'on';
   if (!label || !recipientName || !phone || !addressLine || !city) return { ok: false, message: 'Lengkapi label, penerima, nomor HP, alamat, dan kota.' };
-  const table = supabase.from('customer_addresses' as never) as any;
-  if (isDefault) await table.update({ is_default: false }).eq('customer_id', authData.user.id);
-  const payload = { customer_id: authData.user.id, label, recipient_name: recipientName, phone, address_line: addressLine, city, province, postal_code: postalCode, notes, is_default: isDefault };
-  const response = id ? await table.update(payload).eq('id', id).eq('customer_id', authData.user.id) : await table.insert(payload);
-  if (response.error) return { ok: false, message: `Alamat belum tersimpan: ${response.error.message}` };
+  const { error } = await (supabase as any).rpc('save_customer_address', {
+    p_id: id || null,
+    p_label: label,
+    p_recipient_name: recipientName,
+    p_phone: phone,
+    p_address_line: addressLine,
+    p_city: city,
+    p_province: province,
+    p_postal_code: postalCode,
+    p_notes: notes,
+    p_is_default: isDefault,
+  });
+  if (error) {
+    const message = error.message.includes('ADDRESS_NOT_FOUND')
+      ? 'Alamat tidak ditemukan atau bukan milik akun ini.'
+      : error.message.includes('ADDRESS_AUTH_REQUIRED')
+        ? 'Sesi login sudah berakhir.'
+        : `Alamat belum tersimpan: ${error.message}`;
+    return { ok: false, message };
+  }
   revalidatePath('/account/addresses');
   revalidatePath('/checkout');
   return { ok: true, message: 'Alamat tersimpan.' };

@@ -18,6 +18,12 @@ export async function POST(request: Request) {
   let payload: SupabaseWebhookPayload;
   try { payload = await request.json() as SupabaseWebhookPayload; } catch { return NextResponse.json({ ok: false, message: 'Payload JSON tidak valid.' }, { status: 400 }); }
   if (payload.type !== 'INSERT' || payload.table !== 'commerce_orders' || payload.schema !== 'public' || !payload.record?.id) return NextResponse.json({ ok: true, skipped: true, message: 'Event diabaikan.' });
-  const result = await processWhatsAppNotificationOutbox(25);
-  return NextResponse.json(result, { status: result.ok ? 200 : 502 });
+  try {
+    // Keep webhook CPU bounded. Retries or a scheduled worker can drain the
+    // remaining queue without making one request exceed the Worker limit.
+    const result = await processWhatsAppNotificationOutbox(5);
+    return NextResponse.json(result, { status: result.ok ? 200 : 502 });
+  } catch {
+    return NextResponse.json({ ok: false, message: 'Notifikasi order gagal diproses dan akan dicoba ulang.' }, { status: 502 });
+  }
 }

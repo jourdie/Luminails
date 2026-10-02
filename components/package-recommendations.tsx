@@ -4,12 +4,12 @@ import Link from 'next/link';
 import type { PackageRecommendation } from '../lib/packages';
 import { formatIDR } from '../lib/packages';
 
-export function PackageRecommendations({ items }: { items: PackageRecommendation[] }) {
+export function PackageRecommendations({ items, variant = 'package' }: { items: PackageRecommendation[]; variant?: 'package' | 'home' }) {
   if (!items.length) return null;
   return <section className="package-recommendations">
     <div className="package-recommendations-head">
-      <div><span className="brand-eyebrow">Continue the edit</span><h2>You Might Also Like..</h2></div>
-      <p>Tools, SKU reference, dan package lain yang dipilih untuk alur order kamu.</p>
+      <div><span className="brand-eyebrow">{variant === 'home' ? 'Curated for your workflow' : 'Continue the edit'}</span><h2>{variant === 'home' ? 'Rekomendasi untuk alur order.' : 'You Might Also Like..'}</h2></div>
+      <p>{variant === 'home' ? 'Package dan SKU pilihan admin yang bisa langsung kamu lanjutkan ke alur checkout.' : 'Tools, SKU reference, dan package lain yang dipilih untuk alur order kamu.'}</p>
     </div>
     <div className="package-recommendations-grid">
       {items.map((item) => <Link className="package-recommendation-card" href={item.href} key={item.id}>

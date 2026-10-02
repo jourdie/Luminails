@@ -24,7 +24,8 @@ export async function getCustomerOrders(): Promise<CustomerOrder[]> {
   const { data: orders } = await (supabase.from('commerce_orders') as any)
     .select('id, status, payment_status, fulfillment_status, total_idr, subtotal_idr, discount_idr, shipping_fee_idr, promotion_code, shipping_method, shipping_provider, created_at')
     .eq('customer_id', authData.user.id)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(100);
   const orderIds = (orders ?? []).map((order: { id: string }) => order.id);
   if (!orderIds.length) return [];
   const [{ data: items }, { data: shipments }] = await Promise.all([

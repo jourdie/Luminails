@@ -1,7 +1,9 @@
 import { createClient } from './supabase/server';
+import { getCurrentUser } from './account-server';
 import { type BrandPackage, type PackageSkuOption, type PackageAddOn, type PackageBenefit, type PackageRecommendation } from './packages';
 import { isPackageEligible, type PackageEligibilityRule } from './package-eligibility';
 import { catalogBrandsMatch } from './brand-matching';
+import { cache } from 'react';
 
 type PackageRow = { id: string; brand_id: string; slug: string; title: string; audience: string; description: string; long_description: string | null; price_idr: number; compare_at_price_idr: number | null; badge: string | null; visual_tone: 'clay' | 'ivory' | 'plum'; delivery_note: string | null; selection_mode: 'fixed' | 'free_pick'; selection_capacity: number | null; selection_minimum: number | null; selection_maximum: number | null; pricing_model: 'tier' | 'quantity_range'; status: string; sort_order: number; starts_at: string | null; ends_at: string | null; minimum_quantity: number | null; minimum_subtotal_idr: number | null; stackable: boolean | null; points_earning_mode: 'normal' | 'reduced' | 'none' | null; points_multiplier: number | null; allow_reward_redemption: boolean | null };
 type PackageItemRow = { package_id: string; sku_id: string; item_name_snapshot: string | null; item_note: string | null; quantity: number; sort_order: number };
@@ -24,17 +26,22 @@ function toPackageSkuOption(sku: SkuRow | undefined): PackageSkuOption | null {
   return sku ? { id: sku.id, sku: sku.sku, name: sku.name, price: sku.public_reference_price_idr == null ? null : Number(sku.public_reference_price_idr), imageUrl: sku.image_url ?? null, categoryLabel: sku.category_label ?? '', series: sku.series ?? '', color: sku.color ?? '' } : null;
 }
 
-export async function getBrandPackagesFromDatabase(): Promise<BrandPackage[]> {
+export async function getBrandPackagesFromDatabase(options: { slug?: string } = {}): Promise<BrandPackage[]> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) return [];
 
   const supabase = await createClient();
-  const { data: authData } = await supabase.auth.getUser();
   const db = supabase as any;
-  const { data: packages, error } = await ((supabase as any)
+  let packageQuery = (supabase as any)
     .from('commerce_packages')
     .select('id, brand_id, slug, title, audience, description, long_description, price_idr, compare_at_price_idr, badge, visual_tone, delivery_note, selection_mode, selection_capacity, selection_minimum, selection_maximum, pricing_model, status, sort_order, starts_at, ends_at, minimum_quantity, minimum_subtotal_idr, stackable, points_earning_mode, points_multiplier, allow_reward_redemption')
     .eq('status', 'published')
-    .order('sort_order') as { data: PackageRow[] | null; error: unknown });
+    .order('sort_order')
+    .limit(options.slug ? 1 : 200);
+  if (options.slug) packageQuery = packageQuery.eq('slug', options.slug);
+  const [authUser, { data: packages, error }] = await Promise.all([
+    getCurrentUser(),
+    packageQuery as { data: PackageRow[] | null; error: unknown },
+  ]);
 
   if (error || !packages?.length) return [];
   const now = Date.now();
@@ -43,26 +50,31 @@ export async function getBrandPackagesFromDatabase(): Promise<BrandPackage[]> {
 
   const brandIds = [...new Set(visiblePackages.map((item: PackageRow) => item.brand_id))];
   const packageIds = visiblePackages.map((item: PackageRow) => item.id);
-  const eligibilityStatusResponse = authData.user
-    ? await db.rpc('get_customer_package_eligibility', { p_package_ids: packageIds })
-    : { data: [], error: null };
+  const [eligibilityStatusResponse, packageItemResponse, allowedSkuResponse, packageImageResponse, eligibilityResponse] = await Promise.all([
+    authUser
+      ? db.rpc('get_customer_package_eligibility', { p_package_ids: packageIds })
+      : Promise.resolve({ data: [], error: null }),
+    supabase
+      .from('commerce_package_items')
+      .select('package_id, sku_id, item_name_snapshot, item_note, quantity, sort_order')
+      .in('package_id', packageIds)
+      .order('sort_order')
+      .limit(5000),
+    supabase
+      .from('commerce_package_allowed_skus')
+      .select('package_id, sku_id, sort_order')
+      .in('package_id', packageIds)
+      .order('sort_order')
+      .limit(5000),
+    db.from('commerce_package_images').select('id, package_id, image_url, alt_text, sort_order').in('package_id', packageIds).order('sort_order').limit(1000),
+    db.from('commerce_package_eligibility').select('package_id, customer_tier_id, customer_id, brand_id, sku_id, minimum_quantity, minimum_order_value_idr').in('package_id', packageIds).limit(5000),
+  ]);
   const eligibilityStatusByPackage = new Map<string, boolean>((eligibilityStatusResponse.data ?? []).map((row: { package_id: string; is_eligible: boolean }) => [row.package_id, Boolean(row.is_eligible)]));
-  const packageItemResponse = await (supabase as any)
-    .from('commerce_package_items')
-    .select('package_id, sku_id, item_name_snapshot, item_note, quantity, sort_order')
-    .in('package_id', packageIds)
-    .order('sort_order');
-  const allowedSkuResponse = await (supabase as any)
-    .from('commerce_package_allowed_skus')
-    .select('package_id, sku_id, sort_order')
-    .in('package_id', packageIds)
-    .order('sort_order');
-  const packageImageResponse = await (supabase as any).from('commerce_package_images').select('id, package_id, image_url, alt_text, sort_order').in('package_id', packageIds).order('sort_order');
-  const eligibilityResponse = await db.from('commerce_package_eligibility').select('package_id, customer_tier_id, customer_id, brand_id, sku_id, minimum_quantity, minimum_order_value_idr').in('package_id', packageIds);  const allSkuIds = [...new Set([...(packageItemResponse.data ?? []).map((item: PackageItemRow) => item.sku_id), ...(allowedSkuResponse.data ?? []).map((item: AllowedSkuRow) => item.sku_id)])] as string[];
+  const allSkuIds = [...new Set([...(packageItemResponse.data ?? []).map((item: PackageItemRow) => item.sku_id), ...(allowedSkuResponse.data ?? []).map((item: AllowedSkuRow) => item.sku_id)])] as string[];
   const [{ data: brands }, { data: skus }, { data: packageQuantityPrices }] = await Promise.all([
-    supabase.from('catalog_brands').select('id, name, slug').in('id', brandIds as string[]),
-    allSkuIds.length ? (supabase as any).from('catalog_skus').select('id, name, sku, category_label, series, color, public_reference_price_idr, image_url').in('id', allSkuIds) : Promise.resolve({ data: [] }),
-    (supabase as any).from('commerce_package_quantity_prices').select('package_id, minimum_quantity, maximum_quantity, unit_price_idr, is_active').in('package_id', packageIds).eq('is_active', true).order('minimum_quantity'),
+    supabase.from('catalog_brands').select('id, name, slug').in('id', brandIds as string[]).limit(200),
+    allSkuIds.length ? (supabase as any).from('catalog_skus').select('id, name, sku, category_label, series, color, public_reference_price_idr, image_url').in('id', allSkuIds).limit(5000) : Promise.resolve({ data: [] }),
+    (supabase as any).from('commerce_package_quantity_prices').select('package_id, minimum_quantity, maximum_quantity, unit_price_idr, is_active').in('package_id', packageIds).eq('is_active', true).order('minimum_quantity').limit(2000),
   ]);
 
   const brandById = new Map((brands ?? []).map((brand: BrandRow) => [brand.id, brand]));
@@ -114,7 +126,7 @@ export async function getBrandPackagesFromDatabase(): Promise<BrandPackage[]> {
     }));
     const packageRules = eligibilityByPackage.get(item.id) ?? [];
     const packageSkuIds = [...packageItems.map((content: PackageItemRow) => content.sku_id), ...allowedItems.map((allowed: AllowedSkuRow) => allowed.sku_id)];
-    const isEligible = authData.user ? (eligibilityStatusByPackage.get(item.id) ?? true) : isPackageEligible(packageRules, { customerId: null, customerTierId: null, brandId: item.brand_id, selectedSkuIds: packageSkuIds });
+    const isEligible = authUser ? (eligibilityStatusByPackage.get(item.id) ?? true) : isPackageEligible(packageRules, { customerId: null, customerTierId: null, brandId: item.brand_id, selectedSkuIds: packageSkuIds });
     const packageBenefits: PackageBenefit[] = [];
     return {
       id: item.id,
@@ -157,12 +169,12 @@ export async function getBrandPackagesFromDatabase(): Promise<BrandPackage[]> {
   });
 }
 
-export async function getPackageBySlugFromDatabase(slug: string) {
-  const packages = await getBrandPackagesFromDatabase();
+export const getPackageBySlugFromDatabase = cache(async (slug: string) => {
+  const packages = await getBrandPackagesFromDatabase({ slug });
   return packages.find((item) => item.slug === slug);
-}
+});
 
-export async function getPublicBrandsFromDatabase(): Promise<PublicBrand[]> {
+export const getPublicBrandsFromDatabase = cache(async (): Promise<PublicBrand[]> => {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) return [];
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -181,7 +193,7 @@ export async function getPublicBrandsFromDatabase(): Promise<PublicBrand[]> {
     visualTone: brand.visual_tone,
     imageUrl: null,
   }));
-}
+});
 export async function getPackageAddOnsFromDatabase(packageBrand?: string): Promise<PackageAddOn[]> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) return [];
   const supabase = await createClient();
@@ -207,17 +219,28 @@ export async function getPackageAddOnsFromDatabase(packageBrand?: string): Promi
   }));
 }
 
-export async function getPackageRecommendationsFromDatabase(currentPackageId?: string): Promise<PackageRecommendation[]> {
+type RecommendationPlacement = 'package_detail' | 'home' | 'packages';
+type RecommendationRow = { id: string; package_id: string | null; sku_id: string | null; priority: number; starts_at: string | null; ends_at: string | null };
+
+export async function getRecommendationsForPlacementFromDatabase(
+  placement: RecommendationPlacement,
+  currentPackageId?: string,
+  knownPackages?: BrandPackage[],
+): Promise<PackageRecommendation[]> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) return [];
   const supabase = await createClient();
   const db = supabase as any;
-  const { data: rows, error } = await db.from('commerce_recommendations').select('id, package_id, sku_id, priority, starts_at, ends_at').eq('placement', 'package_detail').eq('is_active', true).order('priority').limit(24);
+  const limit = placement === 'home' ? 6 : 24;
+  const [{ data: rows, error }, packages] = await Promise.all([
+    db.from('commerce_recommendations').select('id, package_id, sku_id, priority, starts_at, ends_at').eq('placement', placement).eq('is_active', true).order('priority').order('created_at').limit(limit),
+    knownPackages ? Promise.resolve(knownPackages) : getBrandPackagesFromDatabase(),
+  ]);
   if (error || !rows?.length) return [];
   const now = Date.now();
-  const visibleRows = (rows as Array<{ id: string; package_id: string | null; sku_id: string | null; starts_at: string | null; ends_at: string | null }>).filter((row) => (!row.starts_at || Date.parse(row.starts_at) <= now) && (!row.ends_at || Date.parse(row.ends_at) > now));
+  const visibleRows = (rows as RecommendationRow[]).filter((row) => (!row.starts_at || Date.parse(row.starts_at) <= now) && (!row.ends_at || Date.parse(row.ends_at) > now));
   if (!visibleRows.length) return [];
-  const packages = (await getBrandPackagesFromDatabase()).filter((item) => item.isEligible !== false);
-  const packageById = new Map(packages.map((item) => [item.id, item]));
+  const eligiblePackages = packages.filter((item) => item.isEligible !== false);
+  const packageById = new Map(eligiblePackages.map((item) => [item.id, item]));
   const skuIds = Array.from(new Set(visibleRows.map((row) => row.sku_id).filter((id): id is string => Boolean(id))));
   const { data: skuRows } = skuIds.length ? await db.from('catalog_skus').select('id, sku, name, category_label, public_reference_price_idr, image_url').in('id', skuIds).eq('is_active', true) : { data: [] };
   const skuById = new Map(((skuRows ?? []) as Array<{ id: string; sku: string; name: string; category_label: string | null; public_reference_price_idr: number | null; image_url: string | null }>).map((sku) => [sku.id, sku]));
@@ -230,9 +253,13 @@ export async function getPackageRecommendationsFromDatabase(currentPackageId?: s
     }
     if (row.sku_id) {
       const sku = skuById.get(row.sku_id);
-      const parent = packages.find((item) => item.id !== currentPackageId && (item.contents.some((content) => content.skuId === row.sku_id) || item.allowedSkus.some((allowed) => allowed.id === row.sku_id)));
+      const parent = eligiblePackages.find((item) => item.id !== currentPackageId && (item.contents.some((content) => content.skuId === row.sku_id) || item.allowedSkus.some((allowed) => allowed.id === row.sku_id)));
       if (sku && parent) result.push({ id: row.id, kind: 'sku', title: sku.name, subtitle: sku.sku + (sku.category_label ? ' / ' + sku.category_label : ''), description: 'SKU reference yang tetap checkout melalui ' + parent.title + '.', href: '/packages/' + parent.slug, imageUrl: sku.image_url, price: sku.public_reference_price_idr == null ? null : Number(sku.public_reference_price_idr) });
     }
   }
   return result;
+}
+
+export async function getPackageRecommendationsFromDatabase(currentPackageId?: string): Promise<PackageRecommendation[]> {
+  return getRecommendationsForPlacementFromDatabase('package_detail', currentPackageId);
 }
