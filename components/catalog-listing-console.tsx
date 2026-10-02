@@ -38,47 +38,48 @@ function validateCatalogImage(event: React.FormEvent<HTMLFormElement>) {
   return true;
 }
 
-export function CatalogListingConsole({ products, categories, brands, skus, canEdit }: { products: AdminDashboard['products']; categories: AdminDashboard['categories']; brands: AdminDashboard['brands']; skus: AdminSku[]; canEdit: boolean }) {
+type CatalogListingFilters = { query: string; brand: string; type: 'all' | CatalogProductType; status: 'all' | 'active' | 'inactive'; sort: 'name' | 'sku' | 'price-low' | 'price-high' | 'stock' };
+
+export function CatalogListingConsole({ products, categories, brands, skus, canEdit, page, pageSize, total, activeCount, attentionCount, filters }: { products: AdminDashboard['products']; categories: AdminDashboard['categories']; brands: AdminDashboard['brands']; skus: AdminSku[]; canEdit: boolean; page: number; pageSize: number; total: number; activeCount: number; attentionCount: number; filters: CatalogListingFilters }) {
   const router = useRouter();
   const [categoryState, createCategoryAction, categoryPending] = useActionState(createCatalogCategory, { ok: false, message: '' });
   const [archiveState, archiveCategoryAction, archivePending] = useActionState(archiveCatalogCategory, { ok: false, message: '' });
   const [createState, createAction, createPending] = useActionState(createCatalogSku, { ok: false, message: '' });
-  const [query, setQuery] = useState('');
-  const [brandFilter, setBrandFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState<'all' | CatalogProductType>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  const [sort, setSort] = useState<'name' | 'sku' | 'price-low' | 'price-high' | 'stock'>('name');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [queryInput, setQueryInput] = useState(filters.query);
   useEffect(() => {
     if (categoryState.ok || archiveState.ok) router.refresh();
   }, [archiveState.ok, categoryState.ok, router]);
+  useEffect(() => {
+    if (queryInput === filters.query) return;
+    const timer = window.setTimeout(() => updateSkuView({ query: queryInput, page: 1 }), 350);
+    return () => window.clearTimeout(timer);
+  }, [filters.query, queryInput]);
   const productById = new Map(products.map((product) => [product.id, product]));
   const brandNames = Array.from(new Set(products.map((product) => product.brand))).sort();
-  const normalizedQuery = query.trim().toLowerCase();
-  const filtered = skus.filter((sku) => {
-    const product = productById.get(sku.product_id);
-    const haystack = `${sku.sku} ${sku.name} ${sku.category_label} ${sku.series ?? ''} ${sku.color ?? ''} ${product?.brand ?? ''}`.toLowerCase();
-    return (!normalizedQuery || haystack.includes(normalizedQuery))
-      && (brandFilter === 'all' || product?.brand === brandFilter)
-      && (typeFilter === 'all' || sku.product_type === typeFilter)
-      && (statusFilter === 'all' || (statusFilter === 'active' ? sku.is_active : !sku.is_active));
-  }).sort((a, b) => sort === 'sku' ? a.sku.localeCompare(b.sku) : sort === 'price-low' ? (a.public_reference_price_idr ?? 0) - (b.public_reference_price_idr ?? 0) : sort === 'price-high' ? (b.public_reference_price_idr ?? 0) - (a.public_reference_price_idr ?? 0) : sort === 'stock' ? b.stock_quantity - a.stock_quantity : a.name.localeCompare(b.name));
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(page, pageCount);
-  const visible = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
-  const resetPage = () => setPage(1);
+  const visible = skus;
+  const updateSkuView = (changes: Partial<CatalogListingFilters> & { page?: number }) => {
+    const next = { ...filters, ...changes };
+    const params = new URLSearchParams({ tab: 'skus', skuPage: String(changes.page ?? page) });
+    if (next.query) params.set('skuQuery', next.query);
+    if (next.brand !== 'all') params.set('skuBrand', next.brand);
+    if (next.type !== 'all') params.set('skuType', next.type);
+    if (next.status !== 'all') params.set('skuStatus', next.status);
+    if (next.sort !== 'name') params.set('skuSort', next.sort);
+    router.replace('/admin?' + params.toString());
+  };
 
   return <div className="admin-crud-stack catalog-listing-module">
     <div className="admin-page-heading">
       <div><p className="eyebrow">Catalog / product master</p><h2>Products &amp; SKU.</h2><p className="admin-help-copy">Satu source of truth untuk produk B2B, SKU, kategori, stok, dan status publikasi.</p></div>
-      <span className="notification-count">{skus.length} SKU tersimpan</span>
+      <span className="notification-count">{total} SKU sesuai filter</span>
     </div>
 
     <div className="catalog-listing-summary">
-      <div><strong>{skus.filter((sku) => sku.is_active).length}</strong><span>Aktif</span></div>
+      <div><strong>{activeCount}</strong><span>Aktif</span></div>
       <div><strong>{categories.filter((category) => category.is_active).length}</strong><span>Kategori aktif</span></div>
-      <div><strong>{skus.filter((sku) => sku.stock_status === 'low_stock' || sku.stock_status === 'out_of_stock').length}</strong><span>Perlu perhatian stok</span></div>
+      <div><strong>{attentionCount}</strong><span>Perlu perhatian stok</span></div>
     </div>
 
     <section className="admin-panel catalog-category-panel">
@@ -117,21 +118,21 @@ export function CatalogListingConsole({ products, categories, brands, skus, canE
     </section>
 
     <section className="admin-panel">
-      <div className="panel-heading"><div><p className="eyebrow">Read / update / archive</p><h3>Daftar produk terstruktur</h3></div><span className="notification-count">{filtered.length} hasil</span></div>
+      <div className="panel-heading"><div><p className="eyebrow">Read / update / archive</p><h3>Daftar produk terstruktur</h3></div><span className="notification-count">{total} hasil</span></div>
       <div className="catalog-listing-controls">
-        <label className="catalog-search">Cari SKU, nama, warna, brand<input type="search" value={query} onChange={(event) => { setQuery(event.target.value); resetPage(); }} placeholder="Contoh: A01 atau Party" /></label>
-        <label>Brand<select value={brandFilter} onChange={(event) => { setBrandFilter(event.target.value); resetPage(); }}><option value="all">Semua brand</option>{brandNames.map((brand) => <option key={brand} value={brand}>{brand}</option>)}</select></label>
-        <label>Tipe<select value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value as typeof typeFilter); resetPage(); }}><option value="all">Semua tipe</option>{productTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-        <label>Status<select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as typeof statusFilter); resetPage(); }}><option value="all">Semua status</option><option value="active">Active</option><option value="inactive">Archived / inactive</option></select></label>
-        <label>Urutkan<select value={sort} onChange={(event) => { setSort(event.target.value as typeof sort); resetPage(); }}><option value="name">Nama A-Z</option><option value="sku">SKU A-Z</option><option value="price-low">Harga terendah</option><option value="price-high">Harga tertinggi</option><option value="stock">Stok terbanyak</option></select></label>
-        <label>Tampilkan<select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); resetPage(); }}><option value={10}>10 entries</option><option value={25}>25 entries</option><option value={50}>50 entries</option></select></label>
+        <label className="catalog-search">Cari SKU, nama, warna, brand<input type="search" value={queryInput} onChange={(event) => setQueryInput(event.target.value)} placeholder="Contoh: A01 atau Party" /></label>
+        <label>Brand<select value={filters.brand} onChange={(event) => updateSkuView({ brand: event.target.value, page: 1 })}><option value="all">Semua brand</option>{brandNames.map((brand) => <option key={brand} value={brand}>{brand}</option>)}</select></label>
+        <label>Tipe<select value={filters.type} onChange={(event) => updateSkuView({ type: event.target.value as CatalogListingFilters['type'], page: 1 })}><option value="all">Semua tipe</option>{productTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+        <label>Status<select value={filters.status} onChange={(event) => updateSkuView({ status: event.target.value as CatalogListingFilters['status'], page: 1 })}><option value="all">Semua status</option><option value="active">Active</option><option value="inactive">Archived / inactive</option></select></label>
+        <label>Urutkan<select value={filters.sort} onChange={(event) => updateSkuView({ sort: event.target.value as CatalogListingFilters['sort'], page: 1 })}><option value="name">Nama A-Z</option><option value="sku">SKU A-Z</option><option value="price-low">Harga terendah</option><option value="price-high">Harga tertinggi</option><option value="stock">Stok terbanyak</option></select></label>
+        <span className="catalog-page-size-note">10 entries per page</span>
       </div>
-      {filtered.length === 0 ? <div className="catalog-empty">Tidak ada data yang cocok. Coba ubah filter atau buat SKU baru.</div> : <>
+      {total === 0 ? <div className="catalog-empty">Tidak ada data yang cocok. Coba ubah filter atau buat SKU baru.</div> : <>
         <div className="catalog-listing-scroll"><div className="catalog-listing-table" role="table" aria-label="Product and SKU listing">
           <div className="catalog-listing-head" role="row"><span>Produk</span><span>SKU / detail</span><span>Brand &amp; kategori</span><span>Tipe</span><span>Harga referensi</span><span>Stok</span><span>Status</span><span>Aksi</span></div>
           {visible.map((sku) => <CatalogListingRow key={sku.id} sku={sku} product={productById.get(sku.product_id)} categories={categories} canEdit={canEdit} />)}
         </div></div>
-        <div className="catalog-pagination"><span>Showing {filtered.length ? (safePage - 1) * pageSize + 1 : 0} to {Math.min(safePage * pageSize, filtered.length)} of {filtered.length} entries</span><div><button type="button" className="button button-outline" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={safePage === 1}>Previous</button><strong>{safePage} / {pageCount}</strong><button type="button" className="button button-outline" onClick={() => setPage((value) => Math.min(pageCount, value + 1))} disabled={safePage === pageCount}>Next</button></div></div>
+        <div className="catalog-pagination"><span>Showing {(safePage - 1) * pageSize + 1} to {Math.min(safePage * pageSize, total)} of {total} entries</span><div><button type="button" className="button button-outline" onClick={() => updateSkuView({ page: Math.max(1, safePage - 1) })} disabled={safePage === 1}>Previous</button><strong>{safePage} / {pageCount}</strong><button type="button" className="button button-outline" onClick={() => updateSkuView({ page: Math.min(pageCount, safePage + 1) })} disabled={safePage === pageCount}>Next</button></div></div>
       </>}
     </section>
   </div>;
