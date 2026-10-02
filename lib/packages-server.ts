@@ -202,6 +202,7 @@ export async function getPackageAddOnsFromDatabase(packageBrand?: string): Promi
     .from('catalog_skus')
     .select('id, sku, name, category_label, product_type, public_reference_price_idr, stock_status, stock_quantity, catalog_products!inner(brand, is_published)')
     .eq('is_active', true)
+    .eq('catalog_products.is_published', true)
     .in('product_type', ['TOOL', 'ACCESSORY'])
     .order('sort_order');
   return ((data ?? []) as Array<{ id: string; sku: string; name: string; category_label: string | null; product_type: 'TOOL' | 'ACCESSORY'; public_reference_price_idr: number | null; stock_status: string; stock_quantity: number; catalog_products: { brand: string; is_published: boolean } | { brand: string; is_published: boolean }[] }>).filter((item) => {
@@ -231,8 +232,9 @@ export async function getRecommendationsForPlacementFromDatabase(
   const supabase = await createClient();
   const db = supabase as any;
   const limit = placement === 'home' ? 6 : 24;
+  const nowIso = new Date().toISOString();
   const [{ data: rows, error }, packages] = await Promise.all([
-    db.from('commerce_recommendations').select('id, package_id, sku_id, priority, starts_at, ends_at').eq('placement', placement).eq('is_active', true).order('priority').order('created_at').limit(limit),
+    db.from('commerce_recommendations').select('id, package_id, sku_id, priority, starts_at, ends_at').eq('placement', placement).eq('is_active', true).or(`starts_at.is.null,starts_at.lte.${nowIso}`).or(`ends_at.is.null,ends_at.gt.${nowIso}`).order('priority').order('created_at').limit(limit),
     knownPackages ? Promise.resolve(knownPackages) : getBrandPackagesFromDatabase(),
   ]);
   if (error || !rows?.length) return [];
