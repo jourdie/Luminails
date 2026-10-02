@@ -12,6 +12,7 @@ tests/admin-check.png
 *.tsbuildinfo
 
 tests/promotion-check.png
+tests/catalog-listing-layout-check.png
 /dist/
 .vinext/
 .wrangler/

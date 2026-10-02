@@ -142,8 +142,8 @@ function CatalogListingRow({ sku, product, categories, canEdit }: { sku: AdminSk
   const [deleteState, deleteAction, deletePending] = useActionState(deleteCatalogSku, { ok: false, message: '' } satisfies AdminActionState);
   return <div className={`catalog-listing-row${sku.is_active ? '' : ' is-archived'}`} role="row">
     <span className="catalog-product-cell"><span className="catalog-product-image">{sku.image_url ? <img src={sku.image_url} alt="" /> : <b>LN</b>}</span><strong>{sku.name}</strong><small>{sku.color || sku.series || 'No shade metadata'}</small></span>
-    <span><strong className="catalog-code">{sku.sku}</strong><small>{sku.badge || 'No badge'}</small></span>
-    <span><strong>{product?.brand || 'Unassigned'}</strong><small>{categories.find((category) => category.id === sku.category_id)?.name || sku.category_label}</small></span>
+    <span className="catalog-detail-cell"><strong className="catalog-code" title={sku.sku}>{sku.sku}</strong><small title={sku.badge || 'No badge'}>{sku.badge || 'No badge'}</small></span>
+    <span className="catalog-detail-cell"><strong title={product?.brand || 'Unassigned'}>{product?.brand || 'Unassigned'}</strong><small title={categories.find((category) => category.id === sku.category_id)?.name || sku.category_label}>{categories.find((category) => category.id === sku.category_id)?.name || sku.category_label}</small></span>
     <span><span className="catalog-type-pill">{typeLabel(sku.product_type)}</span></span>
     <span className="catalog-number">{money(sku.public_reference_price_idr)}</span>
     
