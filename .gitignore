@@ -17,3 +17,5 @@ tests/promotion-check.png
 .wrangler/
 
 .env.production.local.txt
+
+.vercel
