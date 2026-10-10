@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 const fallback = {
   phone: '6289501086888',
-  message: 'Halo Luminails, saya mau konsultasi package dan order.',
+  message: 'Halo Luminails, saya mau konsultasi paket dan order.',
 };
 
 export async function GET() {

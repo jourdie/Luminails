@@ -67,14 +67,14 @@ export function AccountOverview({ identity, profile, loyalty, needsProfile, tier
                   <small>{isCurrent ? `Earning ${decimal(item.multiplier)}x · periode ${item.rollingPeriodMonths} bulan` : `${remaining > 0 ? `Kurang ${money(remaining)}` : 'Target tercapai'} · dihitung ${item.rollingPeriodMonths} bulan`}</small>
                 </div>
                 <div className="tier-roadmap-progress" aria-label={`${item.name}: ${Math.round(progress)}% menuju target`}><i style={{ width: `${progress}%` }} /></div>
-                <div className="tier-roadmap-progress-meta"><span>{Math.round(progress)}% tercapai</span><span>{isCurrent ? 'Pertahankan ritme order' : 'Belanja package untuk naik tier'}</span></div>
+                <div className="tier-roadmap-progress-meta"><span>{Math.round(progress)}% tercapai</span><span>{isCurrent ? 'Pertahankan ritme order' : 'Belanja paket untuk naik tier'}</span></div>
                 {item.description && <p className="tier-roadmap-description">{item.description}</p>}
               </article>;
             })}
           </div>
            <p className="tier-roadmap-note">Poin dihitung dari belanja setelah diskon, bukan ongkir atau produk gratis. Target tier mengikuti total belanja pada periode evaluasi akun.</p>
         </section>}        <section className="account-loyalty-card"><div><p className="eyebrow">Poin Luminails</p><h2>{points(loyalty?.available_points ?? 0)}</h2><p>Poin dihitung dari belanja setelah diskon, bukan ongkir atau produk gratis, dan dapat ditukar dengan reward.</p></div><div className="account-loyalty-rule"><span>Aturan akun</span><strong>{tierName(tier)} &middot; {multiplier}x</strong><small>{pointUnitValue} belanja = 1 poin dasar. Poin bukan uang dan tidak dapat diuangkan.</small></div></section>
-        {needsProfile && <section className="account-profile-nudge"><div><p className="eyebrow">Lengkapi profil studio</p><h3>Supaya checkout berikutnya lebih cepat.</h3><p>Nama studio, nomor HP, dan alamat diperlukan untuk pengiriman package.</p></div><Link className="button button-dark" href="/account/profile">Lengkapi profil <span>-&gt;</span></Link></section>}
+        {needsProfile && <section className="account-profile-nudge"><div><p className="eyebrow">Lengkapi profil studio</p><h3>Supaya checkout berikutnya lebih cepat.</h3><p>Nama studio, nomor HP, dan alamat diperlukan untuk pengiriman paket.</p></div><Link className="button button-dark" href="/account/profile">Lengkapi profil <span>-&gt;</span></Link></section>}
          <section className="account-how-it-works"><div><p className="eyebrow">Cara kerja poin</p><h2>Belanja, kumpulkan,<br /><em>pilih produk gratis.</em></h2></div><div className="account-steps"><div><b>01</b><strong>Order dibayar</strong><span>Poin dihitung dari nilai order.</span></div><div><b>02</b><strong>Poin bertambah</strong><span>Jumlah poin mengikuti tier akun.</span></div><div><b>03</b><strong>Tukar poin ke reward</strong><span>Reward dipilih saat checkout berikutnya.</span></div></div></section>
       </div>
     </main>

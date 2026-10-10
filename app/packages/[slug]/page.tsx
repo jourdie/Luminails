@@ -6,12 +6,12 @@ import { getAccountContext } from '../../../lib/account-server';
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const item = await getPackageBySlugFromDatabase((await params).slug);
-  return { title: item ? item.title + ' | Luminails' : 'Package | Luminails' };
+  return { title: item ? item.title + ' | Luminails' : 'Paket | Luminails' };
 }
 
 export default async function PackageDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const item = await getPackageBySlugFromDatabase((await params).slug);
   if (!item) notFound();
-  const [promotions, account, recommendations] = await Promise.all([getPublicPromotions(), getAccountContext(), getPackageRecommendationsFromDatabase(item.id)]);
+  const [promotions, account, recommendations] = await Promise.all([getPublicPromotions(), getAccountContext({ lightweight: true }), getPackageRecommendationsFromDatabase(item.id)]);
   return <PackageDetail item={item} promotions={promotions} tierSummary={account.tierSummary} recommendations={recommendations} identity={account.identity} profile={account.profile} needsProfile={account.needsProfile} availablePoints={account.loyalty?.available_points ?? account.tierSummary?.availablePoints ?? 0} />;
 }

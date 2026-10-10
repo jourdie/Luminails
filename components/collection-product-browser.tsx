@@ -31,14 +31,14 @@ export function CollectionProductBrowser({ brandName, brandSlug, products, ident
 
   return <><SiteNavigation identity={identity} profile={profile} needsProfile={needsProfile} tierSummary={tierSummary} /><main className="collection-products-page">
     <section className="collection-products-hero section-pad">
-      <Link className="package-back-link" href={basePath}>&lt;- Semua catalog</Link>
+      <Link className="package-back-link" href={basePath}>&lt;- Semua katalog</Link>
       <div className="collection-products-hero-grid"><div><p className="eyebrow"><span className="eyebrow-line"></span> {brandName} / katalog produk</p><h1>Lihat seluruh<br /><em>produk {brandName}.</em></h1></div><p>Temukan produk {brandName} berdasarkan nama, warna, series, atau klasifikasi sebelum memilih paket.</p></div>
     </section>
     <section className="collection-products-content section-pad" aria-labelledby="collection-products-title">
       <div className="section-heading"><div><p className="eyebrow">02 / Pilih produk</p><h2 id="collection-products-title">Temukan kebutuhan<br /><em>studiomu berikutnya.</em></h2></div><p className="section-intro">Katalog membantu kamu mengecek produk. Checkout dilakukan melalui paket agar jumlah, stok, dan pilihan tambahan tetap jelas.</p></div>
       <div className="catalog-toolbar collection-products-toolbar">
         <label className="search-box"><span aria-hidden="true">⌕</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari SKU, nama, warna" aria-label="Cari SKU, nama, warna" /></label>
-        <div className="filter-list collection-series-filters" role="group" aria-label="Filter series"><button type="button" className={`filter-chip${seriesFilter === 'all' ? ' is-active' : ''}`} onClick={() => setSeriesFilter('all')}>Semua catalog</button>{series.map((item) => <button type="button" className={`filter-chip${seriesFilter === item ? ' is-active' : ''}`} key={item} onClick={() => setSeriesFilter(item)}>{item}</button>)}</div>
+        <div className="filter-list collection-series-filters" role="group" aria-label="Filter seri"><button type="button" className={`filter-chip${seriesFilter === 'all' ? ' is-active' : ''}`} onClick={() => setSeriesFilter('all')}>Semua katalog</button>{series.map((item) => <button type="button" className={`filter-chip${seriesFilter === item ? ' is-active' : ''}`} key={item} onClick={() => setSeriesFilter(item)}>{item}</button>)}</div>
         <label className="catalog-classification-select">Klasifikasi <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} aria-label="Filter klasifikasi"><option value="all">Semua</option>{categories.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
         <label className="sort-select">Urutkan <select value={sort} onChange={(event) => setSort(event.target.value)} aria-label="Urutkan SKU"><option value="featured">Pilihan kami</option><option value="price-low">Harga terendah</option><option value="price-high">Harga tertinggi</option></select></label>
       </div>

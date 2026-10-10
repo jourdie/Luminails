@@ -142,7 +142,7 @@ export function PackageDetail({ item, promotions, tierSummary, recommendations =
         quantity,
         unitPrice: currentUnitPrice,
         subtotal: packageSubtotal,
-        priceLabel: quantityPricing ? 'Harga per botol' : (item.priceLabel ?? 'Harga package'),
+        priceLabel: quantityPricing ? 'Harga per botol' : (item.priceLabel ?? 'Harga paket'),
         checkoutHref,
       }));
       window.dispatchEvent(new Event('luminails-cart-updated'));
@@ -161,8 +161,8 @@ export function PackageDetail({ item, promotions, tierSummary, recommendations =
         <section className={'package-detail-art package-detail-art-' + item.tone}>
           <span className={'package-detail-edition'}>{item.badge}</span><div className={'package-detail-orbit'} />
           <div className={'package-gallery'}>
-            {currentImage ? <img className={'package-gallery-image'} src={currentImage.imageUrl} alt={currentImage.alt || item.title} /> : <div className={'package-detail-no-photo'}>Foto package belum tersedia</div>}
-            {gallery.length > 1 && <><div className={'package-gallery-controls'}><button type={'button'} onClick={() => moveGallery(-1)} aria-label={'Foto package sebelumnya'}>&lt;</button><span>{galleryIndex + 1} / {gallery.length}</span><button type={'button'} onClick={() => moveGallery(1)} aria-label={'Foto package berikutnya'}>&gt;</button></div><div className={'package-gallery-thumbs'}>{gallery.map((image, index) => <button type={'button'} className={index === galleryIndex ? 'is-active' : ''} key={image.id || image.imageUrl} onClick={() => setGalleryIndex(index)} aria-label={'Lihat foto package ' + (index + 1)}><img src={image.imageUrl} alt={''} /></button>)}</div></>}
+            {currentImage ? <img className={'package-gallery-image'} src={currentImage.imageUrl} alt={currentImage.alt || item.title} /> : <div className={'package-detail-no-photo'}>Foto paket belum tersedia</div>}
+            {gallery.length > 1 && <><div className={'package-gallery-controls'}><button type={'button'} onClick={() => moveGallery(-1)} aria-label={'Foto paket sebelumnya'}>&lt;</button><span>{galleryIndex + 1} / {gallery.length}</span><button type={'button'} onClick={() => moveGallery(1)} aria-label={'Foto paket berikutnya'}>&gt;</button></div><div className={'package-gallery-thumbs'}>{gallery.map((image, index) => <button type={'button'} className={index === galleryIndex ? 'is-active' : ''} key={image.id || image.imageUrl} onClick={() => setGalleryIndex(index)} aria-label={'Lihat foto paket ' + (index + 1)}><img src={image.imageUrl} alt={''} /></button>)}</div></>}
           </div>
           <div className={'package-detail-stamp'}>{item.brand}<br /><b>SALON EDIT</b></div><p>DIPILIH UNTUK<br /><strong>{item.audience.replace('-', ' ')}</strong></p>
         </section>

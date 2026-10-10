@@ -60,12 +60,12 @@ export function CartPage({ identity, profile, needsProfile, tierSummary }: { ide
     {!ready ? <p className="cart-page-note">Menyiapkan keranjang...</p> : item ? <>
       <section className="cart-page-card">
         <div className="cart-page-item-copy"><span className="checkout-kicker">1 paket tersimpan</span><h2>{item.title}</h2><p>Tools dan aksesori tambahan dipilih pada langkah checkout.</p></div>
-        <div className="cart-page-item-meta" aria-label="Ringkasan harga package">
-          <div><span>{item.priceLabel ?? 'Harga package'}</span><strong>{money(item.unitPrice)}</strong></div>
+        <div className="cart-page-item-meta" aria-label="Ringkasan harga paket">
+          <div><span>{item.priceLabel ?? 'Harga paket'}</span><strong>{money(item.unitPrice)}</strong></div>
           <div><span>Jumlah</span><strong>{item.quantity}</strong></div>
           <div className="cart-page-subtotal"><span>Subtotal</span><strong>{money(item.subtotal ?? (item.unitPrice !== undefined ? item.unitPrice * item.quantity : undefined))}</strong></div>
         </div>
-        <div className="cart-page-actions"><Link className="brand-button brand-button-dark" href={item.checkoutHref}>Lanjut ke checkout <span>-&gt;</span></Link><button className="cart-delete-button" type="button" onClick={clearCart} aria-label="Hapus package dari keranjang" title="Hapus package dari keranjang"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h6l1-13M10 11v5m4-5v5" /></svg></button></div>
+        <div className="cart-page-actions"><Link className="brand-button brand-button-dark" href={item.checkoutHref}>Lanjut ke checkout <span>-&gt;</span></Link><button className="cart-delete-button" type="button" onClick={clearCart} aria-label="Hapus paket dari keranjang" title="Hapus paket dari keranjang"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h6l1-13M10 11v5m4-5v5" /></svg></button></div>
       </section>
       <section className="cart-add-product"><div><span className="checkout-kicker">Masih perlu produk lain?</span><h2>Tambah item untuk studio kamu.</h2><p>Pilih paket lain dari katalog. Keranjang akan menyimpan pilihan terbaru sebelum kamu lanjut checkout.</p></div><Link className="brand-button brand-button-light" href="/packages">Tambah produk <span>+</span></Link></section>
     </> : <section className="cart-page-card cart-page-empty"><h2>Belum ada paket.</h2><p>Pilih paket terlebih dahulu. Setelah itu jumlah dan nominal akan tersimpan di sini sebelum checkout.</p><Link className="brand-button brand-button-dark" href="/packages">Tambah produk <span>+</span></Link></section>}

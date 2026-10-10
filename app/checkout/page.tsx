@@ -61,11 +61,11 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   const selectionTarget = item.pricingModel === 'quantity_range' ? quantity : (item.selectionCapacity ?? 0);
   const selectionValid = item.selectionMode !== 'free_pick' || selectedBottleTotal === selectionTarget;
   const checkoutWarning = !quantityValid
-    ? 'Jumlah botol berada di luar range package. Gunakan quantity mulai ' + quantityMinimum + (quantityMaximum === null ? ' botol ke atas.' : ' sampai ' + quantityMaximum + ' botol.')
+    ? 'Jumlah botol berada di luar batas paket. Gunakan jumlah mulai ' + quantityMinimum + (quantityMaximum === null ? ' botol ke atas.' : ' sampai ' + quantityMaximum + ' botol.')
     : !selectionValid
       ? selectedBottleTotal > selectionTarget
-        ? 'Isi SKU melebihi quantity package. Kurangi ' + (selectedBottleTotal - selectionTarget) + ' botol sebelum checkout.'
-        : 'Isi SKU belum lengkap. Tambahkan ' + (selectionTarget - selectedBottleTotal) + ' botol sebelum checkout.'
+        ? 'Isi paket melebihi kapasitas. Kurangi ' + (selectedBottleTotal - selectionTarget) + ' botol sebelum checkout.'
+        : 'Isi paket belum lengkap. Tambahkan ' + (selectionTarget - selectedBottleTotal) + ' botol sebelum checkout.'
       : null;
   const [{ data: addresses }, { data: loyalty }, { data: rewards }, { data: pointSettings }, addOns, promotions] = await Promise.all([
     supabase.from('customer_addresses' as never).select('id, label, recipient_name, phone, address_line, city, province, postal_code, is_default').order('is_default', { ascending: false }).order('created_at', { ascending: false }).limit(100),
