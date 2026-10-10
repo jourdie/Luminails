@@ -1675,3 +1675,19 @@ html, body { max-width: 100%; overflow-x: clip; }
 .about-social-shopee img{transform:scale(1.08)}
 /* Keep interactive modal backdrops keyboard reachable and visually neutral. */
 .modal-backdrop{border:0;padding:0;cursor:pointer}
+/* Motion Primitives rhythm: reveals support hierarchy without making the catalog feel busy. */
+.hero-copy > div, .hero-copy > p, .hero-copy > h1 { will-change: transform, opacity, filter; }
+.hero-art-reveal { min-height: 555px; height: 100%; }
+.hero-art-reveal .hero-art { height: 100%; }
+.signal-band-reveal { width: 100%; }
+.product-card { transition: transform .35s cubic-bezier(.22,1,.36,1); }
+.product-card:hover { transform: translateY(-5px); }
+.product-image img { transition: transform .6s cubic-bezier(.22,1,.36,1); }
+.product-card:hover .product-image img { transform: scale(1.035); }
+@media (max-width: 960px) { .hero-art-reveal { min-height: 470px; } }
+@media (max-width: 680px) { .hero-art-reveal { min-height: 450px; } }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .hero-copy > div, .hero-copy > p, .hero-copy > h1, .hero-art-reveal, .signal-band-reveal { animation: none !important; transition: none !important; transform: none !important; filter: none !important; }
+  .product-card, .product-image img { transition: none !important; }
+}

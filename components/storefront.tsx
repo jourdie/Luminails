@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { motion } from 'motion/react';
 import type { CatalogProduct } from '../lib/catalog';
 import type { AccountIdentity as AccountIdentityData } from '../lib/account';
 import type { CustomerProfile } from '../lib/account';
@@ -16,6 +17,8 @@ import { HomeFaq } from './home-faq';
 import { CustomerTestimonials } from './customer-testimonials';
 import { SiteNavigation } from './site-navigation';
 import { PackageRecommendations } from './package-recommendations';
+import { AnimatedGroup } from './motion-primitives/animated-group';
+import { InView } from './motion-primitives/in-view';
 
 export function Storefront({ products, packages, promotions, recommendations = [], trustedLogos = [], identity, profile, needsProfile, tierSummary = null }: { products: CatalogProduct[]; packages: BrandPackage[]; promotions: StorefrontPromotion[]; recommendations?: PackageRecommendation[]; trustedLogos?: TrustedLogo[]; identity: AccountIdentityData | null; profile: CustomerProfile | null; needsProfile: boolean; tierSummary?: AccountTierSummary | null }) {
   const [filter, setFilter] = useState('all');
@@ -54,17 +57,17 @@ export function Storefront({ products, packages, promotions, recommendations = [
 
       <main id="top">
         <section className="hero section-pad">
-          <div className="hero-copy">
+          <AnimatedGroup className="hero-copy" preset="blur-slide">
             <p className="eyebrow"><span className="eyebrow-line"></span> Luminails Commerce</p>
             <h1>Belanja nail supply, <em>dengan ritme</em> salon kamu.</h1>
             <p className="hero-description">Stok pilihan untuk tangan yang selalu bekerja. Harga yang jelas untuk kebutuhan salon, repeat order yang lebih cepat, dan support manusia saat kamu butuh.</p>
             <div className="hero-actions"><a className="button button-dark" href="/packages#package-rhythm">Explore packages <span>-&gt;</span></a>{!identity && <button className="button button-quiet" onClick={() => setLoginOpen(true)}>Buat akun salon</button>}</div>
             <div className="hero-notes" aria-label="Keunggulan Luminails"><div><strong>{products.length}</strong><span>SKU aktif</span></div><div><strong>24 jam</strong><span>respon order</span></div><div><strong>1 alur</strong><span>untuk repeat</span></div></div>
-          </div>
-          <div className="hero-art" aria-label="Kolase warna produk Luminails" role="img"><div className="art-orbit orbit-one"></div><div className="art-orbit orbit-two"></div><span className="art-star star-one">*</span><span className="art-star star-two">*</span><div className="swatch-label label-top">SHADES<br /><b>SPRING / 26</b></div><div className="product-tile tile-main"><div className="tile-topline"><span>LUMINAILS</span><span>PACKAGE</span></div><div className="bottle-bloom bloom-coral"></div><div className="bottle-neck"></div><div className="bottle-cap"></div><div className="tile-name">studio<br /><em>edit</em></div></div><div className="product-tile tile-small tile-left"><div className="mini-cap"></div><div className="mini-bottle mini-lilac"></div><span>01 / curated</span></div><div className="product-tile tile-small tile-right"><div className="mini-cap"></div><div className="mini-bottle mini-ink"></div><span>09 / essentials</span></div><div className="art-caption">curated essentials<br /><b>for working artists</b></div></div>
+          </AnimatedGroup>
+          <InView className="hero-art-reveal" variants={{ hidden: { opacity: 0, scale: 0.94, rotate: 2 }, visible: { opacity: 1, scale: 1, rotate: 0 } }} transition={{ duration: 1, ease: [0.22, 1, 0.36, 1], delay: 0.14 }}><div className="hero-art" aria-label="Kolase warna produk Luminails" role="img"><div className="art-orbit orbit-one"></div><div className="art-orbit orbit-two"></div><span className="art-star star-one">*</span><span className="art-star star-two">*</span><div className="swatch-label label-top">SHADES<br /><b>SPRING / 26</b></div><div className="product-tile tile-main"><div className="tile-topline"><span>LUMINAILS</span><span>PACKAGE</span></div><div className="bottle-bloom bloom-coral"></div><div className="bottle-neck"></div><div className="bottle-cap"></div><div className="tile-name">studio<br /><em>edit</em></div></div><div className="product-tile tile-small tile-left"><div className="mini-cap"></div><div className="mini-bottle mini-lilac"></div><span>01 / curated</span></div><div className="product-tile tile-small tile-right"><div className="mini-cap"></div><div className="mini-bottle mini-ink"></div><span>09 / essentials</span></div><div className="art-caption">curated essentials<br /><b>for working artists</b></div></div></InView>
         </section>
 
-        <section className="signal-band" id="how-it-works"><div className="signal-intro"><span className="signal-mark">*</span><p>Order berulang<br /><em>tanpa mulai dari nol.</em></p></div><div className="signal-item"><span>01</span><p><b>Harga yang rapi</b>Tier dan harga akunmu muncul otomatis.</p></div><div className="signal-item"><span>02</span><p><b>Review sebelum bayar</b>Ongkir final dikonfirmasi setelah allocation.</p></div><div className="signal-item"><span>03</span><p><b>Repeat semudah satu klik</b>Riwayat order jadi katalog personalmu.</p></div></section>
+        <InView className="signal-band-reveal" variants={{ hidden: { opacity: 0, y: 22 }, visible: { opacity: 1, y: 0 } }}><section className="signal-band" id="how-it-works"><div className="signal-intro"><span className="signal-mark">*</span><p>Order berulang<br /><em>tanpa mulai dari nol.</em></p></div><div className="signal-item"><span>01</span><p><b>Harga yang rapi</b>Tier dan harga akunmu muncul otomatis.</p></div><div className="signal-item"><span>02</span><p><b>Review sebelum bayar</b>Ongkir final dikonfirmasi setelah allocation.</p></div><div className="signal-item"><span>03</span><p><b>Repeat semudah satu klik</b>Riwayat order jadi katalog personalmu.</p></div></section></InView>
 
         <QuantityPriceBanner packages={packages} compact />
         <PackageRecommendations items={recommendations} variant="home" />
@@ -84,7 +87,7 @@ export function Storefront({ products, packages, promotions, recommendations = [
 
       {loginOpen && <><div className="modal-backdrop" onClick={() => setLoginOpen(false)}></div><section className="login-modal is-open" role="dialog" aria-modal="true" aria-labelledby="login-title"><button className="icon-button modal-close" onClick={() => setLoginOpen(false)} aria-label="Tutup">×</button><span className="modal-kicker">LUMINAILS / CUSTOMER</span><h2 id="login-title">Harga yang mengikuti<br /><em>cara kerjamu.</em></h2><p>Masuk untuk melihat tier harga, menyimpan alamat studio, dan mengulang order lebih cepat.</p><Link className="button button-dark button-full" href="/auth" onClick={() => setLoginOpen(false)}>Lanjut dengan email <span>-&gt;</span></Link><button className="button button-outline button-full" onClick={() => setLoginOpen(false)}>Lihat-lihat dulu</button><small>User baru mulai dari harga standard. Benefit akun bertambah sesuai riwayat belanja dan tier customer.</small></section></>}
       {loginOpen && <button type="button" className="modal-backdrop" aria-label="Tutup dialog login" onClick={() => setLoginOpen(false)} />}
-      <div className={`toast${toast ? ' is-visible' : ''}`} role="status" aria-live="polite">{toast}</div>
+      <motion.div className={`toast${toast ? ' is-visible' : ''}`} role="status" aria-live="polite" initial={false} animate={{ opacity: toast ? 1 : 0, y: toast ? 0 : 12 }} transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}>{toast}</motion.div>
     </>
   );
 }
