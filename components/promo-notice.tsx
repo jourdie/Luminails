@@ -13,5 +13,5 @@ function offerText(promotion: StorefrontPromotion) {
 export function PromoNotice({ promotions, compact = false }: { promotions: StorefrontPromotion[]; compact?: boolean }) {
   if (!promotions.length) return null;
   const promotion = promotions[0];
-  return <div className={compact ? 'promo-notice promo-notice-compact' : 'promo-notice'}><span className="promo-notice-mark">%</span><div><strong>{promotion.name}</strong><span>{offerText(promotion)} · gunakan code <b>{promotion.code}</b></span></div><a href="/packages">Lihat package <span>→</span></a></div>;
+  return <div className={compact ? 'promo-notice promo-notice-compact' : 'promo-notice'}><span className="promo-notice-mark">%</span><div><strong>{promotion.name}</strong><span>{offerText(promotion)} · gunakan kode <b>{promotion.code}</b></span></div><a href="/packages">Lihat paket <span>→</span></a></div>;
 }

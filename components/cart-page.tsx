@@ -54,12 +54,12 @@ export function CartPage({ identity, profile, needsProfile, tierSummary }: { ide
   }
 
   return <><SiteNavigation identity={identity} profile={profile} needsProfile={needsProfile} tierSummary={tierSummary} /><main className="cart-page"><div className="cart-page-shell">
-    <Link className="package-back-link" href="/packages">&lt;- Kembali ke packages</Link>
-    <p className="brand-eyebrow">Luminails / shopping cart</p>
+    <Link className="package-back-link" href="/packages">&lt;- Kembali ke paket</Link>
+    <p className="brand-eyebrow">Luminails / keranjang</p>
     <h1>Keranjang<br /><em>order kamu.</em></h1>
     {!ready ? <p className="cart-page-note">Menyiapkan keranjang...</p> : item ? <>
       <section className="cart-page-card">
-        <div className="cart-page-item-copy"><span className="checkout-kicker">1 package tersimpan</span><h2>{item.title}</h2><p>Add-on tools dan accessories dipilih di langkah checkout setelah package ini.</p></div>
+        <div className="cart-page-item-copy"><span className="checkout-kicker">1 paket tersimpan</span><h2>{item.title}</h2><p>Tools dan aksesori tambahan dipilih pada langkah checkout.</p></div>
         <div className="cart-page-item-meta" aria-label="Ringkasan harga package">
           <div><span>{item.priceLabel ?? 'Harga package'}</span><strong>{money(item.unitPrice)}</strong></div>
           <div><span>Jumlah</span><strong>{item.quantity}</strong></div>
@@ -67,7 +67,7 @@ export function CartPage({ identity, profile, needsProfile, tierSummary }: { ide
         </div>
         <div className="cart-page-actions"><Link className="brand-button brand-button-dark" href={item.checkoutHref}>Lanjut ke checkout <span>-&gt;</span></Link><button className="cart-delete-button" type="button" onClick={clearCart} aria-label="Hapus package dari keranjang" title="Hapus package dari keranjang"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h6l1-13M10 11v5m4-5v5" /></svg></button></div>
       </section>
-      <section className="cart-add-product"><div><span className="checkout-kicker">Masih perlu produk lain?</span><h2>Tambah item untuk studio kamu.</h2><p>Pilih package lain dari katalog. Keranjang akan menyimpan pilihan terbaru sebelum kamu lanjut checkout.</p></div><Link className="brand-button brand-button-light" href="/packages">Tambah produk <span>+</span></Link></section>
-    </> : <section className="cart-page-card cart-page-empty"><h2>Belum ada package.</h2><p>Pilih package terlebih dahulu. Setelah itu pilihan quantity dan nominal akan tersimpan di sini sebelum checkout.</p><Link className="brand-button brand-button-dark" href="/packages">Tambah produk <span>+</span></Link></section>}
+      <section className="cart-add-product"><div><span className="checkout-kicker">Masih perlu produk lain?</span><h2>Tambah item untuk studio kamu.</h2><p>Pilih paket lain dari katalog. Keranjang akan menyimpan pilihan terbaru sebelum kamu lanjut checkout.</p></div><Link className="brand-button brand-button-light" href="/packages">Tambah produk <span>+</span></Link></section>
+    </> : <section className="cart-page-card cart-page-empty"><h2>Belum ada paket.</h2><p>Pilih paket terlebih dahulu. Setelah itu jumlah dan nominal akan tersimpan di sini sebelum checkout.</p><Link className="brand-button brand-button-dark" href="/packages">Tambah produk <span>+</span></Link></section>}
   </div></main></>;
 }

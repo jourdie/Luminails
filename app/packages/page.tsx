@@ -4,11 +4,11 @@ import { getPublicPromotions } from '../../lib/promotions-server';
 import { getAccountContext } from '../../lib/account-server';
 
 export const metadata = {
-  title: 'Packages | Luminails',
-  description: 'Large-format packages for home studios and salons.',
+  title: 'Paket | Luminails',
+  description: 'Paket nail supply untuk home studio, salon, dan kebutuhan restock.',
 };
 
 export default async function PackagesPage() {
-  const [packages, promotions, account] = await Promise.all([getBrandPackagesFromDatabase(), getPublicPromotions(), getAccountContext()]);
+  const [packages, promotions, account] = await Promise.all([getBrandPackagesFromDatabase({ summary: true }), getPublicPromotions(), getAccountContext({ lightweight: true })]);
   return <BrandExplorer mode="packages" packages={packages} promotions={promotions} tierSummary={account.tierSummary} identity={account.identity} profile={account.profile} needsProfile={account.needsProfile} />;
 }

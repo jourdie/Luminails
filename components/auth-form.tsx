@@ -57,19 +57,19 @@ export function AuthForm({ supabaseUrl, supabasePublishableKey }: { supabaseUrl:
     <><SiteNavigation /><main className="auth-shell">
       <div className="auth-card">
         <Link className="brand" href="/">luminails<span className="brand-dot">.</span></Link>
-        <p className="eyebrow auth-eyebrow">Luminails / account</p>
+        <p className="eyebrow auth-eyebrow">Luminails / akun</p>
         <h1>Masuk ke ruang<br /><em>order kamu.</em></h1>
-        <p className="auth-copy">Akun baru mulai dari harga standard. Benefit tier berikutnya aktif sesuai riwayat belanja dan aturan yang dikonfigurasi admin.</p>
-        <button className="button button-outline button-full auth-google-button" type="button" onClick={handleGoogleLogin} disabled={pending}><span className="google-mark">G</span>{pending ? 'Menghubungkan...' : 'Lanjut dengan Google'} <span>&rarr;</span></button>
+        <p className="auth-copy">Mulai dari harga standar. Benefit akun akan mengikuti riwayat belanja dan kebutuhan studio kamu.</p>
+        <button className="button button-outline button-full auth-google-button" type="button" onClick={handleGoogleLogin} disabled={pending}><span className="google-mark">G</span>{pending ? 'Menghubungkan…' : 'Lanjut dengan Google'} <span>&rarr;</span></button>
         <div className="auth-divider"><span>atau gunakan email</span></div>
         <form onSubmit={handleSubmit} className="auth-form">
           <label htmlFor="email">Email kerja atau email studio</label>
           <input id="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="nama@studio.com" required />
-          <button className="button button-dark button-full" type="submit" disabled={pending}>{pending ? 'Mengirim link...' : 'Kirim link login'} <span>&rarr;</span></button>
+         <button className="button button-dark button-full" type="submit" disabled={pending}>{pending ? 'Mengirim link…' : 'Kirim link login'} <span>&rarr;</span></button>
         </form>
         {message && <p className="auth-message" role="status">{message}</p>}
-        <p className="auth-footnote">Admin juga login melalui Supabase Auth, lalu akses `/admin` ditentukan oleh `admin_memberships`, bukan role dari user metadata.</p>
-        <Link className="underlined-link" href="/">Kembali ke storefront <span>&rarr;</span></Link>
+        <p className="auth-footnote">Masuk untuk menyimpan profil studio, melihat harga akun, dan melanjutkan order dengan lebih cepat.</p>
+        <Link className="underlined-link" href="/">Kembali ke halaman utama <span>&rarr;</span></Link>
       </div>
     </main>
     </>

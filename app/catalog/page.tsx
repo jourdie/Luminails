@@ -6,11 +6,11 @@ import { getPublicBrandsFromDatabase } from '../../lib/packages-server';
 
 export const metadata: Metadata = {
   title: 'Catalog | Luminails',
-  description: 'Pilih brand lalu browse SKU Luminails sebelum memilih package.',
+  description: 'Pilih brand lalu lihat produk Luminails sebelum memilih paket.',
 };
 
 export default async function CatalogPage() {
-  const [brands, products, account] = await Promise.all([getPublicBrandsFromDatabase(), getCatalogProducts(), getAccountContext()]);
+  const [brands, products, account] = await Promise.all([getPublicBrandsFromDatabase(), getCatalogProducts(), getAccountContext({ lightweight: true })]);
   const imageByBrand = new Map<string, string>();
   for (const product of products) {
     if (product.imageUrl && !imageByBrand.has(product.brand.trim().toLowerCase())) imageByBrand.set(product.brand.trim().toLowerCase(), product.imageUrl);
