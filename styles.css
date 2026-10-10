@@ -1691,3 +1691,54 @@ html, body { max-width: 100%; overflow-x: clip; }
   .hero-copy > div, .hero-copy > p, .hero-copy > h1, .hero-art-reveal, .signal-band-reveal { animation: none !important; transition: none !important; transform: none !important; filter: none !important; }
   .product-card, .product-image img { transition: none !important; }
 }
+
+/* Home refresh: quieter hierarchy, soft surfaces, and customer-facing language. */
+.site-header-global { height: 78px; gap: 34px; }
+.site-header-global .header-tier-pill,
+.site-header-global .header-points-pill { display: none; }
+.site-header-global .header-actions { gap: 14px; }
+.hero { min-height: 600px; gap: clamp(28px, 5vw, 76px); }
+.hero-copy { padding: 48px 0 40px; }
+.hero .eyebrow,
+.catalog-section .eyebrow,
+.testimonials-section .eyebrow { letter-spacing: .02em; text-transform: none; }
+.hero-description { max-width: 390px; }
+.hero-notes { width: fit-content; gap: 24px; margin-top: 40px; padding: 14px 17px; border: 1px solid rgba(52,35,41,.08); border-radius: 18px; background: var(--paper-deep); box-shadow: 7px 7px 17px rgba(52,35,41,.08), -6px -6px 15px rgba(255,255,255,.78); }
+.hero-notes strong { font-size: 20px; }
+.hero-art-reveal { min-height: 500px; padding: 14px; border-radius: 34px; background: var(--paper-deep); box-shadow: 12px 14px 30px rgba(52,35,41,.09), -10px -10px 26px rgba(255,255,255,.82); }
+.hero-art-reveal .hero-art { min-height: 472px; }
+.signal-band-reveal { width: min(100% - 44px, 1240px); margin: 28px auto 0; }
+.signal-band { overflow: hidden; border: 1px solid rgba(52,35,41,.08); border-radius: 24px; background: var(--paper-deep); box-shadow: 9px 10px 24px rgba(52,35,41,.08), -8px -8px 20px rgba(255,255,255,.76); }
+.signal-band > div { min-height: 126px; padding: 24px clamp(18px, 2.5vw, 32px); border-right: 1px solid rgba(52,35,41,.08); }
+.signal-intro { background: transparent; }
+.signal-item p { max-width: 160px; }
+.quantity-price-banner { background: var(--paper); border-top: 0; border-bottom: 0; }
+.quantity-price-banner-compact { margin: 0 auto 10px; padding: 48px 0 22px; }
+.quantity-price-banner-card { border: 1px solid rgba(52,35,41,.08); border-radius: 18px; background: var(--paper-deep); box-shadow: 7px 8px 18px rgba(52,35,41,.07), -6px -6px 15px rgba(255,255,255,.75); transition: transform .25s ease, box-shadow .25s ease; }
+.quantity-price-banner-card:hover { transform: translateY(-3px); box-shadow: 10px 12px 22px rgba(52,35,41,.1), -7px -7px 17px rgba(255,255,255,.8); }
+.package-recommendations { margin-top: 28px; padding: 32px 0 62px; border-top: 0; }
+.package-recommendations-head { align-items: end; margin-bottom: 24px; }
+.package-recommendations-head h2 { max-width: 520px; font-size: clamp(34px, 4.2vw, 54px); }
+.package-recommendations-head p { max-width: 260px; }
+.package-recommendation-card { min-height: 142px; overflow: hidden; border: 1px solid rgba(52,35,41,.08); border-radius: 18px; background: var(--paper-deep); box-shadow: 7px 8px 18px rgba(52,35,41,.07), -6px -6px 15px rgba(255,255,255,.78); transition: transform .25s ease, box-shadow .25s ease; }
+.package-recommendation-card:hover { transform: translateY(-3px); box-shadow: 10px 12px 22px rgba(52,35,41,.1), -7px -7px 17px rgba(255,255,255,.82); }
+.package-recommendation-media { background: var(--paper); }
+.testimonials-section { background: var(--paper-deep); }
+.testimonials-heading > p { max-width: 270px; }
+.testimonial-card { overflow: hidden; border: 1px solid rgba(52,35,41,.08); border-radius: 18px; background: var(--paper); box-shadow: 7px 8px 18px rgba(52,35,41,.06), -6px -6px 15px rgba(255,255,255,.7); }
+.home-social-links a { border-radius: 18px; box-shadow: 7px 8px 18px rgba(52,35,41,.06), -6px -6px 15px rgba(255,255,255,.7); }
+@media (max-width: 960px) {
+  .hero-art-reveal { min-height: 450px; }
+  .hero-art-reveal .hero-art { min-height: 422px; }
+}
+@media (max-width: 680px) {
+  .site-header-global { height: 70px; }
+  .hero { min-height: 0; }
+  .hero-copy { padding: 16px 0 0; }
+  .hero-notes { width: 100%; justify-content: space-between; gap: 10px; }
+  .hero-art-reveal { min-height: 450px; margin: 17px -10px 0; padding: 8px; border-radius: 26px; }
+  .signal-band-reveal { width: calc(100% - 30px); margin-top: 18px; }
+  .signal-band { border-radius: 18px; }
+  .package-recommendations { width: calc(100% - 30px); }
+  .package-recommendations-head h2 { font-size: 38px; }
+}

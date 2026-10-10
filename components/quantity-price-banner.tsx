@@ -8,8 +8,8 @@ export function QuantityPriceBanner({ packages, compact = false }: { packages: B
 
   return <section className={'quantity-price-banner' + (compact ? ' quantity-price-banner-compact' : '')} aria-label={'Harga package berjalan'}>
     <div className={'quantity-price-banner-head'}>
-      <div><span className={'brand-eyebrow'}>Running package prices</span><h2>Semakin banyak botol,<br /><em>semakin ringan harganya.</em></h2></div>
-      <p>Harga per botol berubah otomatis saat quantity berpindah ke range berikutnya.</p>
+      <div><span className={'brand-eyebrow'}>Harga volume</span><h2>Lebih banyak kebutuhan,<br /><em>lebih ringan harganya.</em></h2></div>
+      <p>Harga per botol menyesuaikan jumlah yang kamu pilih.</p>
     </div>
     <div className={'quantity-price-banner-grid'}>
       {quantityPackages.map((item) => <Link className={'quantity-price-banner-card'} href={'/packages/' + item.slug} key={item.slug}>
