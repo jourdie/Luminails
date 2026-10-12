@@ -75,7 +75,11 @@ Skill yang dikunci di `skills-lock.json`: `find-skills`, `frontend-design`, `ver
 2. Implementasikan customer auth magic link/Google dengan middleware cookie refresh.
 3. Tambahkan pricing tier server-side dan order snapshot/idempotency.
 4. Tambahkan Operations allocation lokal/dropship dan quote versioning.
-5. Integrasikan Midtrans Sandbox melalui adapter dan verified webhook.
+5. Integrasikan pembayaran Midtrans Sandbox melalui checkout token dan verified webhook.
+
+Webhook Midtrans Sandbox tersedia di `/api/webhooks/midtrans`. Isi `MIDTRANS_SERVER_KEY`
+hanya di environment server/Worker; route memverifikasi signature dan meneruskan event
+ke RPC idempotent sebelum status pembayaran mengubah order.
 
 ## WhatsApp
 

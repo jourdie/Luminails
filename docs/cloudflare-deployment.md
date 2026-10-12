@@ -61,6 +61,9 @@ SUPABASE_SERVICE_ROLE_KEY=...
 APP_TIMEZONE=Asia/Jakarta
 NEXT_PUBLIC_WHATSAPP_NUMBER=6289501086888
 NEXT_PUBLIC_WHATSAPP_MESSAGE=Halo Luminails, saya mau konsultasi produk dan order.
+MIDTRANS_SERVER_KEY=...
+MIDTRANS_SERVER_KEY=...
+MIDTRANS_SERVER_KEY=...
 WHATSAPP_CLOUD_API_VERSION=v23.0
 WHATSAPP_CLOUD_API_TOKEN=...
 WHATSAPP_CLOUD_PHONE_NUMBER_ID=...
@@ -105,6 +108,36 @@ Tambahkan header:
 ```text
 x-whatsapp-webhook-secret: <nilai WHATSAPP_WEBHOOK_SECRET>
 ```
+
+Untuk Midtrans Sandbox, set notification URL ke:
+
+```text
+https://domain-production-anda/api/webhooks/midtrans
+```
+
+Route memverifikasi `signature_key`, memetakan status Midtrans, lalu memanggil
+RPC `apply_payment_event` dengan service role agar event dan perubahan order
+diproses atomik serta aman terhadap retry.
+
+Untuk Midtrans Sandbox, set notification URL ke:
+
+```text
+https://domain-production-anda/api/webhooks/midtrans
+```
+
+Route memverifikasi `signature_key`, memetakan status Midtrans, lalu memanggil
+RPC `apply_payment_event` dengan service role agar event dan perubahan order
+diproses atomik serta aman terhadap retry.
+
+Untuk Midtrans Sandbox, set notification URL ke:
+
+```text
+https://domain-production-anda/api/webhooks/midtrans
+```
+
+Route memverifikasi `signature_key`, memetakan status Midtrans, lalu memanggil
+RPC `apply_payment_event` dengan service role agar event dan perubahan order
+diproses atomik serta aman terhadap retry.
 
 ## 5. Custom domain
 
