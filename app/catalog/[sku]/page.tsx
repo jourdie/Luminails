@@ -10,7 +10,7 @@ export async function generateMetadata({ params }: { params: Promise<{ sku: stri
 
 export default async function CatalogSkuPage({ params }: { params: Promise<{ sku: string }> }) {
   const sku = (await params).sku;
-  const [product, account] = await Promise.all([getCatalogProductBySku(sku), getAccountContext()]);
+  const [product, account] = await Promise.all([getCatalogProductBySku(sku), getAccountContext({ lightweight: true })]);
   if (!product) notFound();
   return <CatalogSkuDetail product={product} identity={account.identity} profile={account.profile} needsProfile={account.needsProfile} tierSummary={account.tierSummary} />;
 }

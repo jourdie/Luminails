@@ -40,12 +40,15 @@ export async function getCustomerRewards(): Promise<CustomerReward[]> {
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) return [];
   const db = supabase as any;
+  const nowIso = new Date().toISOString();
   const [{ data: rewards, error }, { data: tiers }] = await Promise.all([
     db.from('loyalty_reward_catalog')
       .select('id, sku_id, reward_name, description, image_url, points_cost, normal_selling_price_idr, reward_stock, max_redemption_quantity, minimum_order_value_idr, minimum_customer_tier_id, starts_at, ends_at, catalog_skus(sku, name, image_url)')
       .eq('is_active', true)
+      .or(`starts_at.is.null,starts_at.lte.${nowIso}`)
+      .or(`ends_at.is.null,ends_at.gt.${nowIso}`)
       .order('points_cost')
-      .limit(200),
+      .limit(100),
     db.from('customer_tiers').select('id, name').eq('is_active', true),
   ]);
   if (error || !rewards) return [];

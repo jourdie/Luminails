@@ -6,8 +6,8 @@ import { getBrandPackagesFromDatabase, getRecommendationsForPlacementFromDatabas
 import { getPublicTrustedLogos } from '../lib/trusted-logos';
 
 export default async function HomePage() {
-  const packagesPromise = getBrandPackagesFromDatabase();
-  const [products, account, promotions, packages, trustedLogos] = await Promise.all([getCatalogProducts(), getAccountContext(), getPublicPromotions(), packagesPromise, getPublicTrustedLogos()]);
+  const packagesPromise = getBrandPackagesFromDatabase({ summary: true });
+  const [products, account, promotions, packages, trustedLogos] = await Promise.all([getCatalogProducts(), getAccountContext({ lightweight: true }), getPublicPromotions(), packagesPromise, getPublicTrustedLogos()]);
   const recommendations = await getRecommendationsForPlacementFromDatabase('home', undefined, packages);
   return <><Storefront products={products} packages={packages} promotions={promotions} recommendations={recommendations} trustedLogos={trustedLogos} identity={account.identity} profile={account.profile} needsProfile={account.needsProfile} tierSummary={account.tierSummary} /></>;
 }

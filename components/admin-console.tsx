@@ -16,7 +16,7 @@ import { RecommendationConsole } from './recommendation-console';
 import { TrustedLogoConsole } from './trusted-logo-console';
 
 const money = (value: number) => 'Rp' + new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(value);
-const date = (value: string) => new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
+const date = (value: string) => new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(value));
 
 type AdminTab = AdminDashboardTab;
 type AdminSkuFilters = { query: string; brand: string; type: CatalogProductType | 'all'; status: AdminSkuStatusFilter; sort: AdminSkuSort };

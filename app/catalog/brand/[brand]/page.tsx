@@ -13,9 +13,9 @@ export async function generateMetadata({ params }: { params: Promise<{ brand: st
 
 export default async function CatalogBrandPage({ params }: { params: Promise<{ brand: string }> }) {
   const brandSlug = (await params).brand;
-  const [brands, products, account] = await Promise.all([getPublicBrandsFromDatabase(), getCatalogProducts({ withPackageLinks: true }), getAccountContext()]);
+  const [brands, account] = await Promise.all([getPublicBrandsFromDatabase(), getAccountContext({ lightweight: true })]);
   const brand = brands.find((item) => item.slug === brandSlug);
   if (!brand) notFound();
-  const brandProducts = products.filter((product) => product.brand.trim().toLowerCase() === brand.name.trim().toLowerCase());
+  const brandProducts = await getCatalogProducts({ withPackageLinks: true, brand: brand.name });
   return <CollectionProductBrowser brandName={brand.name} brandSlug={brand.slug} products={brandProducts} identity={account.identity} profile={account.profile} needsProfile={account.needsProfile} tierSummary={account.tierSummary} basePath="/catalog" />;
 }

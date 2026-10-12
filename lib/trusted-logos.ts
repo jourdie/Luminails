@@ -16,7 +16,8 @@ export async function getPublicTrustedLogos(): Promise<TrustedLogo[]> {
     .select('id, name, image_url, alt_text, sort_order')
     .eq('is_active', true)
     .order('sort_order')
-    .order('name');
+    .order('name')
+    .limit(100);
   if (error || !data) return [];
   return (data as Array<{ id: string; name: string; image_url: string; alt_text: string | null; sort_order: number }>).map((item) => ({
     id: item.id,

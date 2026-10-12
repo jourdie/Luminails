@@ -15,12 +15,15 @@ export type StorefrontPromotion = {
 export async function getPublicPromotions(): Promise<StorefrontPromotion[]> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) return [];
   const supabase = await createClient();
+  const nowIso = new Date().toISOString();
   const { data, error } = await supabase
     .from('commerce_promotions')
     .select('code, name, description, promotion_type, discount_type, discount_value, bundle_price_idr, starts_at, ends_at')
     .in('status', ['scheduled', 'active'])
     .eq('is_active', true)
     .in('audience_type', ['all', 'new_user', 'repeat_customer'])
+    .lte('starts_at', nowIso)
+    .or(`ends_at.is.null,ends_at.gt.${nowIso}`)
     .order('starts_at', { ascending: false })
     .limit(6);
   if (error) return [];

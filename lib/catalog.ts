@@ -84,19 +84,21 @@ function mapCatalogRow(item: CatalogRow, packageIdsBySku: Map<string, Set<string
   };
 }
 
-export async function getCatalogProducts(options: { withPackageLinks?: boolean } = {}): Promise<CatalogProduct[]> {
+export async function getCatalogProducts(options: { withPackageLinks?: boolean; brand?: string } = {}): Promise<CatalogProduct[]> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
     return [];
   }
 
   const supabase = await createClient();
-  const { data: rawData, error } = await supabase
+  let productQuery = supabase
     .from('catalog_skus')
     .select('id, sku, name, category_label, series, color, public_reference_price_idr, badge, image_url, catalog_products!inner(id, brand, name, category)')
     .eq('is_active', true)
     .eq('catalog_products.is_published', true)
     .order('sort_order')
     .limit(1000);
+  if (options.brand) productQuery = productQuery.eq('catalog_products.brand', options.brand);
+  const { data: rawData, error } = await productQuery;
 
   if (error || !rawData) return [];
   const data = rawData as unknown as CatalogRow[];

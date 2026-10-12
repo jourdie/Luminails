@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '../../lib/supabase/server';
 import type { CatalogProductType, CatalogStockStatus } from '../../lib/admin';
+import { parseDateTimeLocal } from '../../lib/date-time';
 
 export type AdminActionState = { ok: boolean; message: string };
 
@@ -559,6 +560,7 @@ function parsePromotionForm(formData: FormData) {
   const repeatOrderCount = integerOrZero(formData.get('repeat_order_min_count'));
   const usageLimit = optionalInteger(formData.get('usage_limit'));
   const usagePerCustomer = optionalInteger(formData.get('usage_limit_per_customer'));
+  const status = String(formData.get('status') ?? 'draft');
   const startsAt = parseDateTime(String(formData.get('starts_at') ?? ''));
   const endsAt = parseDateTime(String(formData.get('ends_at') ?? ''));
   const eligibleCustomerIds = String(formData.get('eligible_customer_ids') ?? '').split(',').map((value) => value.trim()).filter(Boolean);
@@ -588,9 +590,11 @@ function parsePromotionForm(formData: FormData) {
       voucher_code: String(formData.get('voucher_code') ?? '').trim().toUpperCase() || null,
       usage_limit: usageLimit,
       usage_limit_per_customer: usagePerCustomer,
-      starts_at: startsAt ?? new Date().toISOString(),
+      // An active promotion is published immediately. Never reuse the
+      // browser's datetime-local value for this state, including on edit.
+      starts_at: status === 'active' ? new Date().toISOString() : startsAt ?? new Date().toISOString(),
       ends_at: endsAt,
-      status: String(formData.get('status') ?? 'draft'),
+      status,
       is_stackable: formData.get('is_stackable') === 'on',
       is_active: formData.get('is_active') === 'on',
     },
@@ -625,9 +629,7 @@ function requiredMoneyInteger(value: FormDataEntryValue | null) {
 }
 
 function parseDateTime(value: string) {
-  if (!value) return null;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.valueOf()) ? null : parsed.toISOString();
+  return parseDateTimeLocal(value);
 }
 
 async function syncEligibleCustomers(supabase: Awaited<ReturnType<typeof createClient>>, promotionId: string, customerIds: string[]) {
@@ -935,7 +937,10 @@ function parsePackageForm(formData: FormData) {
   if (selectionMode === 'free_pick' && pricingModel === 'quantity_range' && (!selectionMinimum || selectionMinimum < 1 || (selectionMaximum !== null && selectionMaximum < selectionMinimum))) return { ok: false as const, message: 'Quantity pricing free-pick wajib memiliki minimum dan maksimum yang valid.' };
   if (selectionMode === 'fixed' && (selectionCapacity !== null || selectionMinimum !== null || selectionMaximum !== null)) return { ok: false as const, message: 'Fixed package tidak memakai kapasitas pilihan.' };
   if (!['normal', 'reduced', 'none'].includes(pointsEarningMode) || pointsMultiplier <= 0) return { ok: false as const, message: 'Aturan earning points package belum valid.' };
-  return { ok: true as const, data: { brand_id: brandId, package_type_id: packageTypeId, slug, title, audience, description, long_description: String(formData.get('long_description') ?? '').trim() || null, price_idr: price, compare_at_price_idr: compareAt, badge: String(formData.get('badge') ?? '').trim() || null, visual_tone: visualTone, delivery_note: String(formData.get('delivery_note') ?? '').trim() || null, selection_mode: selectionMode, selection_capacity: selectionMode === 'free_pick' && pricingModel === 'tier' ? selectionCapacity : null, selection_minimum: selectionMode === 'free_pick' && pricingModel === 'quantity_range' ? selectionMinimum : null, selection_maximum: selectionMode === 'free_pick' && pricingModel === 'quantity_range' ? selectionMaximum : null, pricing_model: pricingModel, starts_at: String(formData.get('starts_at') ?? '').trim() || null, ends_at: String(formData.get('ends_at') ?? '').trim() || null, minimum_quantity: minimumQuantity, minimum_subtotal_idr: 0, stackable: formData.get('stackable') === 'on', points_earning_mode: pointsEarningMode, points_multiplier: pointsMultiplier, allow_reward_redemption: formData.get('allow_reward_redemption') !== 'off', status, sort_order: integerOrZero(formData.get('sort_order')) } };
+  const startsAt = parseDateTime(String(formData.get('starts_at') ?? ''));
+  const endsAt = parseDateTime(String(formData.get('ends_at') ?? ''));
+  if (endsAt && startsAt && endsAt <= startsAt) return { ok: false as const, message: 'Tanggal berakhir harus setelah tanggal mulai.' };
+  return { ok: true as const, data: { brand_id: brandId, package_type_id: packageTypeId, slug, title, audience, description, long_description: String(formData.get('long_description') ?? '').trim() || null, price_idr: price, compare_at_price_idr: compareAt, badge: String(formData.get('badge') ?? '').trim() || null, visual_tone: visualTone, delivery_note: String(formData.get('delivery_note') ?? '').trim() || null, selection_mode: selectionMode, selection_capacity: selectionMode === 'free_pick' && pricingModel === 'tier' ? selectionCapacity : null, selection_minimum: selectionMode === 'free_pick' && pricingModel === 'quantity_range' ? selectionMinimum : null, selection_maximum: selectionMode === 'free_pick' && pricingModel === 'quantity_range' ? selectionMaximum : null, pricing_model: pricingModel, starts_at: status === 'published' ? new Date().toISOString() : startsAt, ends_at: endsAt, minimum_quantity: minimumQuantity, minimum_subtotal_idr: 0, stackable: formData.get('stackable') === 'on', points_earning_mode: pointsEarningMode, points_multiplier: pointsMultiplier, allow_reward_redemption: formData.get('allow_reward_redemption') !== 'off', status, sort_order: integerOrZero(formData.get('sort_order')) } };
 }
 
 function parseFixedPackageItems(formData: FormData) {

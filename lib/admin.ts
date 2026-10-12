@@ -207,10 +207,10 @@ export async function getAdminDashboard(options: AdminDashboardOptions = {}): Pr
   const canInventory = isOwner || permissions.inventory;
   const canSettings = isOwner || permissions.settings;
   const loadOverview = activeTab === 'overview';
-  const loadProducts = loadOverview || activeTab === 'skus' || activeTab === 'customers';
+  const loadProducts = loadOverview || activeTab === 'skus';
   const loadCategories = activeTab === 'skus';
   const loadOrders = loadOverview || activeTab === 'orders' || activeTab === 'customers';
-  const loadShipments = activeTab === 'orders' || activeTab === 'customers';
+  const loadShipments = activeTab === 'orders';
   const loadNotifications = activeTab === 'overview' || activeTab === 'orders';
   const loadBrands = activeTab === 'products' || activeTab === 'skus' || activeTab === 'packages' || activeTab === 'recommendations';
   const loadPackages = activeTab === 'packages' || activeTab === 'recommendations' || activeTab === 'customers';

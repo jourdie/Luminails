@@ -47,7 +47,7 @@ export const getCurrentUser = cache(async () => {
   return data.user ?? null;
 });
 
-export async function getAccountContext(): Promise<AccountContext> {
+export async function getAccountContext(options: { lightweight?: boolean } = {}): Promise<AccountContext> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
     return { identity: null, profile: null, needsProfile: false, loyalty: null, tierSummary: null };
   }
@@ -57,12 +57,13 @@ export async function getAccountContext(): Promise<AccountContext> {
   if (!user) return { identity: null, profile: null, needsProfile: false, loyalty: null, tierSummary: null };
 
   const db = supabase as any;
+  const includeHistory = !options.lightweight;
   const [profileResponse, loyaltyResponse, tiersResponse, ordersResponse, pointLotsResponse, pointSettingsResponse] = await Promise.all([
     db.from('customer_profiles').select('id, display_name, business_name, business_type, whatsapp, phone, address, studio_type, additional_info, avatar_url, status, pricing_tier_id, customer_tier_id, auto_customer_tier_id, manual_tier_override_enabled, lifetime_paid_amount_idr, paid_order_count').eq('id', user.id).maybeSingle(),
     db.from('loyalty_accounts').select('customer_id, pricing_tier_id, customer_tier_id, tier_code, cashback_rate_bps, available_points, lifetime_earned_points, lifetime_redeemed_points, updated_at').eq('customer_id', user.id).maybeSingle(),
     db.from('customer_tiers').select('id, code, name, minimum_rolling_spend_idr, maximum_rolling_spend_idr, rolling_period_months, point_multiplier, points_per_10000_idr, description, benefits_description').eq('is_active', true).order('minimum_rolling_spend_idr', { ascending: true }).limit(50),
-    db.from('commerce_orders').select('subtotal_idr, total_idr, discount_idr, created_at, payment_status').eq('customer_id', user.id).in('payment_status', ['paid', 'partially_refunded', 'pending']).order('created_at', { ascending: false }).limit(500),
-    db.from('loyalty_point_lots').select('remaining_points, expires_at').eq('customer_id', user.id).gt('remaining_points', 0).order('expires_at').limit(500),
+    includeHistory ? db.from('commerce_orders').select('subtotal_idr, total_idr, discount_idr, created_at, payment_status').eq('customer_id', user.id).in('payment_status', ['paid', 'partially_refunded', 'pending']).order('created_at', { ascending: false }).limit(500) : Promise.resolve({ data: [] }),
+    includeHistory ? db.from('loyalty_point_lots').select('remaining_points, expires_at').eq('customer_id', user.id).gt('remaining_points', 0).order('expires_at').limit(500) : Promise.resolve({ data: [] }),
     db.from('loyalty_point_settings').select('point_unit_value_idr').eq('key', 'default').maybeSingle(),
   ]);
   const profile = profileResponse.data;

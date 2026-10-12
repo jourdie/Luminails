@@ -26,20 +26,27 @@ function toPackageSkuOption(sku: SkuRow | undefined): PackageSkuOption | null {
   return sku ? { id: sku.id, sku: sku.sku, name: sku.name, price: sku.public_reference_price_idr == null ? null : Number(sku.public_reference_price_idr), imageUrl: sku.image_url ?? null, categoryLabel: sku.category_label ?? '', series: sku.series ?? '', color: sku.color ?? '' } : null;
 }
 
-export async function getBrandPackagesFromDatabase(options: { slug?: string } = {}): Promise<BrandPackage[]> {
+export async function getBrandPackagesFromDatabase(options: { slug?: string; summary?: boolean } = {}): Promise<BrandPackage[]> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) return [];
 
   const supabase = await createClient();
   const db = supabase as any;
+  const nowIso = new Date().toISOString();
+  const summary = Boolean(options.summary && !options.slug);
+  const packageSelect = summary
+    ? 'id, brand_id, slug, title, audience, description, price_idr, compare_at_price_idr, badge, visual_tone, pricing_model, sort_order, starts_at, ends_at, minimum_quantity, minimum_subtotal_idr, stackable, points_earning_mode, points_multiplier, allow_reward_redemption'
+    : 'id, brand_id, slug, title, audience, description, long_description, price_idr, compare_at_price_idr, badge, visual_tone, delivery_note, selection_mode, selection_capacity, selection_minimum, selection_maximum, pricing_model, status, sort_order, starts_at, ends_at, minimum_quantity, minimum_subtotal_idr, stackable, points_earning_mode, points_multiplier, allow_reward_redemption';
   let packageQuery = (supabase as any)
     .from('commerce_packages')
-    .select('id, brand_id, slug, title, audience, description, long_description, price_idr, compare_at_price_idr, badge, visual_tone, delivery_note, selection_mode, selection_capacity, selection_minimum, selection_maximum, pricing_model, status, sort_order, starts_at, ends_at, minimum_quantity, minimum_subtotal_idr, stackable, points_earning_mode, points_multiplier, allow_reward_redemption')
+    .select(packageSelect)
     .eq('status', 'published')
+    .or(`starts_at.is.null,starts_at.lte.${nowIso}`)
+    .or(`ends_at.is.null,ends_at.gt.${nowIso}`)
     .order('sort_order')
     .limit(options.slug ? 1 : 200);
   if (options.slug) packageQuery = packageQuery.eq('slug', options.slug);
   const [authUser, { data: packages, error }] = await Promise.all([
-    getCurrentUser(),
+    summary ? Promise.resolve(null) : getCurrentUser(),
     packageQuery as { data: PackageRow[] | null; error: unknown },
   ]);
 
@@ -50,6 +57,65 @@ export async function getBrandPackagesFromDatabase(options: { slug?: string } = 
 
   const brandIds = [...new Set(visiblePackages.map((item: PackageRow) => item.brand_id))];
   const packageIds = visiblePackages.map((item: PackageRow) => item.id);
+  if (summary) {
+    const [{ data: brands }, { data: packageImages }, { data: packageQuantityPrices }] = await Promise.all([
+      supabase.from('catalog_brands').select('id, name, slug').in('id', brandIds as string[]).limit(100),
+      db.from('commerce_package_images').select('id, package_id, image_url, alt_text, sort_order').in('package_id', packageIds).order('sort_order').limit(Math.max(200, packageIds.length * 3)),
+      db.from('commerce_package_quantity_prices').select('package_id, minimum_quantity, maximum_quantity, unit_price_idr, is_active').in('package_id', packageIds).eq('is_active', true).order('minimum_quantity').limit(1000),
+    ]);
+    const brandById = new Map((brands ?? []).map((brand: BrandRow) => [brand.id, brand]));
+    const imageByPackage = new Map<string, PackageImageRow>();
+    for (const image of (packageImages ?? []) as PackageImageRow[]) if (!imageByPackage.has(image.package_id)) imageByPackage.set(image.package_id, image);
+    const quantityPricesByPackage = new Map<string, Array<{ packageId: string; minimumQuantity: number; maximumQuantity: number | null; unitPriceIdr: number }>>();
+    for (const row of ((packageQuantityPrices ?? []) as PackageQuantityPriceRow[])) {
+      const existing = quantityPricesByPackage.get(row.package_id) ?? [];
+      existing.push({ packageId: row.package_id, minimumQuantity: Number(row.minimum_quantity), maximumQuantity: row.maximum_quantity === null ? null : Number(row.maximum_quantity), unitPriceIdr: Number(row.unit_price_idr) });
+      quantityPricesByPackage.set(row.package_id, existing);
+    }
+    return visiblePackages.filter((item: PackageRow) => brandById.has(item.brand_id)).map((item: PackageRow) => {
+      const brand = brandById.get(item.brand_id);
+      const cover = imageByPackage.get(item.id);
+      const packageImagesForCard = cover ? [{ id: cover.id, imageUrl: cover.image_url, alt: cover.alt_text, sortOrder: cover.sort_order }] : [];
+      const contents: never[] = [];
+      return {
+        id: item.id,
+        slug: item.slug,
+        brand: brand?.name ?? 'Luminails',
+        brandSlug: brand?.slug ?? 'luminails',
+        title: item.title,
+        audience: item.audience,
+        description: item.description,
+        longDescription: item.description,
+        price: item.price_idr,
+        priceLabel: 'Harga package',
+        compareAt: item.compare_at_price_idr ?? item.price_idr,
+        badge: item.badge || 'Salon package',
+        tone: item.visual_tone,
+        imageUrl: cover?.image_url ?? null,
+        isEligible: true,
+        eligibilityNote: null,
+        benefits: [],
+        minimumQuantity: item.minimum_quantity ?? 1,
+        minimumSubtotalIdr: item.minimum_subtotal_idr ?? 0,
+        selectionMinimum: null,
+        selectionMaximum: null,
+        pricingModel: item.pricing_model ?? 'tier',
+        quantityPrices: quantityPricesByPackage.get(item.id) ?? [],
+        stackable: item.stackable ?? false,
+        pointsEarningMode: item.points_earning_mode ?? 'normal',
+        pointsMultiplier: Number(item.points_multiplier ?? 1),
+        allowRewardRedemption: item.allow_reward_redemption ?? true,
+        images: packageImagesForCard,
+        delivery: 'Dispatch in 1-2 business days',
+        selectionMode: 'fixed' as const,
+        selectionCapacity: null,
+        allowedSkus: [],
+        contents,
+        highlights: ['Curated for working studios'],
+      };
+    });
+  }
+
   const [eligibilityStatusResponse, packageItemResponse, allowedSkuResponse, packageImageResponse, eligibilityResponse] = await Promise.all([
     authUser
       ? db.rpc('get_customer_package_eligibility', { p_package_ids: packageIds })
@@ -59,22 +125,22 @@ export async function getBrandPackagesFromDatabase(options: { slug?: string } = 
       .select('package_id, sku_id, item_name_snapshot, item_note, quantity, sort_order')
       .in('package_id', packageIds)
       .order('sort_order')
-      .limit(5000),
+      .limit(1000),
     supabase
       .from('commerce_package_allowed_skus')
       .select('package_id, sku_id, sort_order')
       .in('package_id', packageIds)
       .order('sort_order')
-      .limit(5000),
-    db.from('commerce_package_images').select('id, package_id, image_url, alt_text, sort_order').in('package_id', packageIds).order('sort_order').limit(1000),
-    db.from('commerce_package_eligibility').select('package_id, customer_tier_id, customer_id, brand_id, sku_id, minimum_quantity, minimum_order_value_idr').in('package_id', packageIds).limit(5000),
+      .limit(1000),
+    db.from('commerce_package_images').select('id, package_id, image_url, alt_text, sort_order').in('package_id', packageIds).order('sort_order').limit(50),
+    db.from('commerce_package_eligibility').select('package_id, customer_tier_id, customer_id, brand_id, sku_id, minimum_quantity, minimum_order_value_idr').in('package_id', packageIds).limit(1000),
   ]);
   const eligibilityStatusByPackage = new Map<string, boolean>((eligibilityStatusResponse.data ?? []).map((row: { package_id: string; is_eligible: boolean }) => [row.package_id, Boolean(row.is_eligible)]));
   const allSkuIds = [...new Set([...(packageItemResponse.data ?? []).map((item: PackageItemRow) => item.sku_id), ...(allowedSkuResponse.data ?? []).map((item: AllowedSkuRow) => item.sku_id)])] as string[];
   const [{ data: brands }, { data: skus }, { data: packageQuantityPrices }] = await Promise.all([
-    supabase.from('catalog_brands').select('id, name, slug').in('id', brandIds as string[]).limit(200),
-    allSkuIds.length ? (supabase as any).from('catalog_skus').select('id, name, sku, category_label, series, color, public_reference_price_idr, image_url').in('id', allSkuIds).limit(5000) : Promise.resolve({ data: [] }),
-    (supabase as any).from('commerce_package_quantity_prices').select('package_id, minimum_quantity, maximum_quantity, unit_price_idr, is_active').in('package_id', packageIds).eq('is_active', true).order('minimum_quantity').limit(2000),
+    supabase.from('catalog_brands').select('id, name, slug').in('id', brandIds as string[]).limit(100),
+    allSkuIds.length ? (supabase as any).from('catalog_skus').select('id, name, sku, category_label, series, color, public_reference_price_idr, image_url').in('id', allSkuIds).limit(2000) : Promise.resolve({ data: [] }),
+    (supabase as any).from('commerce_package_quantity_prices').select('package_id, minimum_quantity, maximum_quantity, unit_price_idr, is_active').in('package_id', packageIds).eq('is_active', true).order('minimum_quantity').limit(100),
   ]);
 
   const brandById = new Map((brands ?? []).map((brand: BrandRow) => [brand.id, brand]));
@@ -182,7 +248,8 @@ export const getPublicBrandsFromDatabase = cache(async (): Promise<PublicBrand[]
     .select('id, name, slug, tagline, description, visual_tone')
     .eq('is_published', true)
     .order('sort_order')
-    .order('name');
+    .order('name')
+    .limit(100);
   if (error || !data) return [];
   return (data as Array<{ id: string; name: string; slug: string; tagline: string | null; description: string | null; visual_tone: PublicBrand['visualTone'] }>).map((brand) => ({
     id: brand.id,
@@ -198,13 +265,16 @@ export async function getPackageAddOnsFromDatabase(packageBrand?: string): Promi
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) return [];
   const supabase = await createClient();
   const db = supabase as any;
-  const { data } = await db
+  let addOnQuery = db
     .from('catalog_skus')
     .select('id, sku, name, category_label, product_type, public_reference_price_idr, stock_status, stock_quantity, catalog_products!inner(brand, is_published)')
     .eq('is_active', true)
     .eq('catalog_products.is_published', true)
     .in('product_type', ['TOOL', 'ACCESSORY'])
-    .order('sort_order');
+    .order('sort_order')
+    .limit(200);
+  if (packageBrand) addOnQuery = addOnQuery.eq('catalog_products.brand', packageBrand);
+  const { data } = await addOnQuery;
   return ((data ?? []) as Array<{ id: string; sku: string; name: string; category_label: string | null; product_type: 'TOOL' | 'ACCESSORY'; public_reference_price_idr: number | null; stock_status: string; stock_quantity: number; catalog_products: { brand: string; is_published: boolean } | { brand: string; is_published: boolean }[] }>).filter((item) => {
     const product = Array.isArray(item.catalog_products) ? item.catalog_products[0] : item.catalog_products;
     return item.public_reference_price_idr !== null && product?.is_published !== false && (!packageBrand || catalogBrandsMatch(product?.brand, packageBrand));
@@ -235,7 +305,7 @@ export async function getRecommendationsForPlacementFromDatabase(
   const nowIso = new Date().toISOString();
   const [{ data: rows, error }, packages] = await Promise.all([
     db.from('commerce_recommendations').select('id, package_id, sku_id, priority, starts_at, ends_at').eq('placement', placement).eq('is_active', true).or(`starts_at.is.null,starts_at.lte.${nowIso}`).or(`ends_at.is.null,ends_at.gt.${nowIso}`).order('priority').order('created_at').limit(limit),
-    knownPackages ? Promise.resolve(knownPackages) : getBrandPackagesFromDatabase(),
+    knownPackages ? Promise.resolve(knownPackages) : getBrandPackagesFromDatabase({ summary: true }),
   ]);
   if (error || !rows?.length) return [];
   const now = Date.now();
@@ -244,8 +314,18 @@ export async function getRecommendationsForPlacementFromDatabase(
   const eligiblePackages = packages.filter((item) => item.isEligible !== false);
   const packageById = new Map(eligiblePackages.map((item) => [item.id, item]));
   const skuIds = Array.from(new Set(visibleRows.map((row) => row.sku_id).filter((id): id is string => Boolean(id))));
-  const { data: skuRows } = skuIds.length ? await db.from('catalog_skus').select('id, sku, name, category_label, public_reference_price_idr, image_url').in('id', skuIds).eq('is_active', true) : { data: [] };
+  const [{ data: skuRows }, { data: packageItemRows }, { data: allowedSkuRows }] = await Promise.all([
+    skuIds.length ? db.from('catalog_skus').select('id, sku, name, category_label, public_reference_price_idr, image_url').in('id', skuIds).eq('is_active', true) : Promise.resolve({ data: [] }),
+    skuIds.length ? db.from('commerce_package_items').select('package_id, sku_id').in('sku_id', skuIds).limit(500) : Promise.resolve({ data: [] }),
+    skuIds.length ? db.from('commerce_package_allowed_skus').select('package_id, sku_id').in('sku_id', skuIds).limit(500) : Promise.resolve({ data: [] }),
+  ]);
   const skuById = new Map(((skuRows ?? []) as Array<{ id: string; sku: string; name: string; category_label: string | null; public_reference_price_idr: number | null; image_url: string | null }>).map((sku) => [sku.id, sku]));
+  const packageIdsBySku = new Map<string, Set<string>>();
+  for (const row of [...(packageItemRows ?? []), ...(allowedSkuRows ?? [])] as Array<{ package_id: string; sku_id: string }>) {
+    const packageIds = packageIdsBySku.get(row.sku_id) ?? new Set<string>();
+    packageIds.add(row.package_id);
+    packageIdsBySku.set(row.sku_id, packageIds);
+  }
   const result: PackageRecommendation[] = [];
   for (const row of visibleRows) {
     if (row.package_id) {
@@ -255,7 +335,9 @@ export async function getRecommendationsForPlacementFromDatabase(
     }
     if (row.sku_id) {
       const sku = skuById.get(row.sku_id);
-      const parent = eligiblePackages.find((item) => item.id !== currentPackageId && (item.contents.some((content) => content.skuId === row.sku_id) || item.allowedSkus.some((allowed) => allowed.id === row.sku_id)));
+      const parent = [...(packageIdsBySku.get(row.sku_id) ?? [])]
+        .map((packageId) => packageById.get(packageId))
+        .find((item) => item && item.id !== currentPackageId);
       if (sku && parent) result.push({ id: row.id, kind: 'sku', title: sku.name, subtitle: sku.sku + (sku.category_label ? ' / ' + sku.category_label : ''), description: 'SKU reference yang tetap checkout melalui ' + parent.title + '.', href: '/packages/' + parent.slug, imageUrl: sku.image_url, price: sku.public_reference_price_idr == null ? null : Number(sku.public_reference_price_idr) });
     }
   }

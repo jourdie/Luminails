@@ -20,9 +20,20 @@ import {
 } from '../app/admin/actions';
 import type { AdminBrand, AdminCustomerTier, AdminInventoryLocation, AdminInventoryStock, AdminPackage, AdminPackageAllowedSku, AdminPackageQuantityPrice, AdminPackageBenefit, AdminPackageEligibility, AdminPackageImage, AdminPackageItem, AdminPackageType, AdminSku, AdminWhatsappSettings } from '../lib/admin';
 import { IdrInput } from './idr-input';
+import { formatDateTimeLocal } from '../lib/date-time';
 
 const initialState: AdminActionState = { ok: false, message: '' };
 const MAX_PACKAGE_IMAGE_BYTES = 6 * 1024 * 1024;
+
+function groupByPackage<T extends { package_id: string }>(rows: T[]) {
+  const grouped = new Map<string, T[]>();
+  for (const row of rows) {
+    const current = grouped.get(row.package_id);
+    if (current) current.push(row);
+    else grouped.set(row.package_id, [row]);
+  }
+  return grouped;
+}
 
 function validatePackageImages(event: React.FormEvent<HTMLFormElement>) {
   const input = event.currentTarget.elements.namedItem('package_images');
@@ -60,11 +71,24 @@ const [selectionMode, setSelectionMode] = useState<'fixed' | 'free_pick'>('fixed
   const [packageSort, setPackageSort] = useState<'newest' | 'name' | 'start' | 'end' | 'usage'>('newest');
   const [packagePage, setPackagePage] = useState(0);
   const [packagePageSize, setPackagePageSize] = useState(10);
-  const packageNow = Date.now();
+  const [packageNow] = useState(() => Date.now());
+  const skuById = useMemo(() => new Map(skus.map((sku) => [sku.id, sku])), [skus]);
+  const packageItemsByPackage = useMemo(() => groupByPackage(packageItems), [packageItems]);
+  const packageAllowedByPackage = useMemo(() => groupByPackage(packageAllowedSkus), [packageAllowedSkus]);
+  const packageTierByPackage = useMemo(() => {
+    const result = new Map<string, Set<string>>();
+    for (const rule of packageEligibility) {
+      if (!rule.customer_tier_id) continue;
+      const tiers = result.get(rule.package_id) ?? new Set<string>();
+      tiers.add(rule.customer_tier_id);
+      result.set(rule.package_id, tiers);
+    }
+    return result;
+  }, [packageEligibility]);
   const visiblePackages = useMemo(() => packages.filter((item) => {
-    const relatedItems = packageItems.filter((row) => row.package_id === item.id);
-    const relatedAllowed = packageAllowedSkus.filter((row) => row.package_id === item.id);
-    const relatedSkuText = [...relatedItems.map((row) => row.item_name_snapshot), ...relatedAllowed.map((row) => skus.find((sku) => sku.id === row.sku_id)?.name ?? row.sku_id)].join(' ');
+    const relatedItems = packageItemsByPackage.get(item.id) ?? [];
+    const relatedAllowed = packageAllowedByPackage.get(item.id) ?? [];
+    const relatedSkuText = [...relatedItems.map((row) => row.item_name_snapshot), ...relatedAllowed.map((row) => skuById.get(row.sku_id)?.name ?? row.sku_id)].join(' ');
     const searchText = [item.title, item.slug, item.brand_name, relatedSkuText].filter(Boolean).join(' ').toLowerCase();
     const starts = item.starts_at ? new Date(item.starts_at).getTime() : -Infinity;
     const ends = item.ends_at ? new Date(item.ends_at).getTime() : Infinity;
@@ -74,7 +98,7 @@ const [selectionMode, setSelectionMode] = useState<'fixed' | 'free_pick'>('fixed
       || (packageWindow === 'expired' && ends <= packageNow);
     return searchText.includes(packageQuery.trim().toLowerCase())
       && (packageBrand === 'all' || item.brand_id === packageBrand)
-      && (packageTier === 'all' || packageEligibility.some((rule) => rule.package_id === item.id && rule.customer_tier_id === packageTier))
+      && (packageTier === 'all' || packageTierByPackage.get(item.id)?.has(packageTier) === true)
       && (packageStatus === 'all' || item.status === packageStatus)
       && windowMatch;
   }).sort((a, b) => {
@@ -83,7 +107,7 @@ const [selectionMode, setSelectionMode] = useState<'fixed' | 'free_pick'>('fixed
     if (packageSort === 'end') return (b.ends_at ?? '9999').localeCompare(a.ends_at ?? '9999');
     if (packageSort === 'usage') return Number(b.usage_count ?? 0) - Number(a.usage_count ?? 0);
     return b.slug.localeCompare(a.slug);
-  }), [packages, packageItems, packageAllowedSkus, skus, packageEligibility, packageQuery, packageBrand, packageTier, packageStatus, packageWindow, packageSort, packageNow]);
+  }), [packages, packageItemsByPackage, packageAllowedByPackage, skuById, packageTierByPackage, packageQuery, packageBrand, packageTier, packageStatus, packageWindow, packageSort, packageNow]);
   const packagePageCount = Math.max(1, Math.ceil(visiblePackages.length / packagePageSize));
   const safePackagePage = Math.min(packagePage, packagePageCount - 1);
   const pagedPackages = visiblePackages.slice(safePackagePage * packagePageSize, safePackagePage * packagePageSize + packagePageSize);
@@ -147,7 +171,7 @@ function packageVisibility(item: AdminPackage) {
   if (item.status === 'draft') return 'Draft - belum tampil di customer';
   if (item.status === 'archived') return 'Archived - disembunyikan';
   const now = Date.now();
-  if (item.starts_at && new Date(item.starts_at).getTime() > now) return 'Terjadwal: mulai ' + new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(item.starts_at));
+  if (item.starts_at && new Date(item.starts_at).getTime() > now) return 'Terjadwal: mulai ' + new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(item.starts_at));
   if (item.ends_at && new Date(item.ends_at).getTime() <= now) return 'Berakhir - tidak tampil';
   return 'Live - tersedia di customer';
 }
@@ -159,7 +183,7 @@ function PackageRow({ item, brands, packageItems, packageAllowedSkus, packageIma
   const [editPricingModel, setEditPricingModel] = useState<'tier' | 'quantity_range'>(item.pricing_model ?? 'tier');
   const eligibleTierNames = [...new Set(packageEligibility.filter((rule) => rule.customer_tier_id).map((rule) => customerTiers.find((tier) => tier.id === rule.customer_tier_id)?.name).filter(Boolean))].join(', ') || 'Semua tier';
   const priceRule = 'Harga package';
-  const benefitSummary = packageBenefits.length ? packageBenefits.map((benefit) => (benefit.notes || 'Benefit') + ' x ' + benefit.quantity).join(', ') : '-';  const formatDate = (value?: string | null) => value ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium' }).format(new Date(value)) : '-';
+  const benefitSummary = packageBenefits.length ? packageBenefits.map((benefit) => (benefit.notes || 'Benefit') + ' x ' + benefit.quantity).join(', ') : '-';  const formatDate = (value?: string | null) => value ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeZone: 'Asia/Jakarta' }).format(new Date(value)) : '-';
   return (
     <div className="admin-crud-record">
       <div className="admin-data-table package-summary-table" role="row">
@@ -183,7 +207,7 @@ function PackageRow({ item, brands, packageItems, packageAllowedSkus, packageIma
         <label>Tipe package<select name="package_type_id" defaultValue={item.package_type_id ?? ''} disabled={!canEdit}>{packageTypes.filter((type) => type.is_active).map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select><input type="hidden" name="audience" value={item.audience} /></label><label>Model harga<select name="pricing_model" value={editPricingModel} onChange={(event) => setEditPricingModel(event.target.value as 'tier' | 'quantity_range')} disabled={!canEdit}><option value="tier">Satu harga / per package</option><option value="quantity_range" disabled={editSelectionMode === 'fixed'}>Quantity pricing / harga per botol</option></select></label><label>Model isi package<select name="selection_mode" value={editSelectionMode} onChange={(event) => { const next = event.target.value as 'fixed' | 'free_pick'; setEditSelectionMode(next); if (next === 'fixed') setEditPricingModel('tier'); }} disabled={!canEdit}><option value="fixed">Fixed / isi sudah ditentukan</option><option value="free_pick">Free pick / customer pilih isi</option></select></label>{editSelectionMode === 'free_pick' && editPricingModel === 'tier' && <label>Maksimum pilihan customer<input name="selection_capacity" type="number" min="1" step="1" defaultValue={item.selection_capacity ?? ''} disabled={!canEdit} placeholder="Contoh 12" /></label>}{editSelectionMode === 'free_pick' && editPricingModel === 'quantity_range' && <><label>Minimum botol<input name="selection_minimum" type="number" min="1" defaultValue={item.selection_minimum ?? 12} disabled={!canEdit} /></label><label>Maksimum botol (opsional)<input name="selection_maximum" type="number" min="1" defaultValue={item.selection_maximum ?? ''} disabled={!canEdit} placeholder="Kosong = 48+" /></label></>}
         {editPricingModel === 'tier' ? <label>Harga package / dibayar customer<IdrInput name="price_idr" defaultValue={item.price_idr} disabled={!canEdit} /></label> : <QuantityPricingFields canEdit={canEdit} rows={packageQuantityPrices} />}
         <label>Harga normal market retail<IdrInput name="compare_at_price_idr" defaultValue={item.compare_at_price_idr ?? undefined} disabled={!canEdit} /></label>
-         <label>Mulai tampil<input name={'starts_at'} type={'datetime-local'} defaultValue={item.starts_at ? new Date(item.starts_at).toISOString().slice(0, 16) : ''} disabled={!canEdit} /></label><label>Berakhir tampil<input name={'ends_at'} type={'datetime-local'} defaultValue={item.ends_at ? new Date(item.ends_at).toISOString().slice(0, 16) : ''} disabled={!canEdit} /></label>
+         <label>Mulai tampil<input name={'starts_at'} type={'datetime-local'} defaultValue={formatDateTimeLocal(item.starts_at)} disabled={!canEdit} /><small className="field-help">Status Published selalu memakai waktu NOW.</small></label><label>Berakhir tampil<input name={'ends_at'} type={'datetime-local'} defaultValue={formatDateTimeLocal(item.ends_at)} disabled={!canEdit} /></label>
         <label className="admin-crud-wide">Deskripsi<textarea name="description" rows={2} defaultValue={item.description} disabled={!canEdit} /></label>
         <label>Minimum qty package<input name="minimum_quantity" type="number" min="1" defaultValue={item.minimum_quantity ?? 1} disabled={!canEdit} /></label><label>Points earning<select name="points_earning_mode" defaultValue={item.points_earning_mode ?? 'normal'} disabled={!canEdit}><option value="normal">Normal</option><option value="reduced">Reduced</option><option value="none">Tidak earn</option></select></label><label>Points multiplier<input name="points_multiplier" type="number" min="0.01" step="0.01" defaultValue={item.points_multiplier ?? 1} disabled={!canEdit} /></label><label className="admin-check"><input name="allow_reward_redemption" type="checkbox" defaultChecked={item.allow_reward_redemption ?? true} disabled={!canEdit} /> Boleh redeem reward</label><label className="admin-check"><input name="stackable" type="checkbox" defaultChecked={item.stackable ?? false} disabled={!canEdit} /> Stackable</label>
         <input type="hidden" name="long_description" value={item.long_description ?? ''} />
