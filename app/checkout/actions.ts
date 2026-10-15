@@ -130,5 +130,5 @@ export async function submitCheckoutOrder(_previous: CheckoutActionState, formDa
 
   revalidatePath('/account');
   revalidatePath('/account/orders');
-  redirect(`/account/orders?created=${encodeURIComponent(order.order_id)}`);
+  redirect(`/payment/${encodeURIComponent(order.order_id)}`);
 }

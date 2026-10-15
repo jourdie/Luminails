@@ -13,6 +13,11 @@ export type MidtransNotification = Record<string, unknown> & {
 
 export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'expired' | 'refunded' | 'partially_refunded';
 
+export type MidtransSnapTransaction = {
+  token: string;
+  redirect_url: string;
+};
+
 function text(value: unknown) {
   return typeof value === 'string' ? value.trim() : '';
 }
@@ -64,4 +69,40 @@ export function mapMidtransPaymentStatus(notification: MidtransNotification): Pa
 
 export function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+export async function createMidtransSnapTransaction(input: { orderId: string; grossAmount: number }) {
+  const serverKey = process.env.MIDTRANS_SERVER_KEY?.trim();
+  if (!serverKey) throw new Error('MIDTRANS_NOT_CONFIGURED');
+  if (!Number.isSafeInteger(input.grossAmount) || input.grossAmount < 0) throw new Error('MIDTRANS_INVALID_AMOUNT');
+
+  const environment = process.env.MIDTRANS_ENVIRONMENT?.trim().toLowerCase() === 'production' ? 'production' : 'sandbox';
+  const endpoint = environment === 'production'
+    ? 'https://app.midtrans.com/snap/v1/transactions'
+    : 'https://app.sandbox.midtrans.com/snap/v1/transactions';
+  const authorization = Buffer.from(`${serverKey}:`, 'utf8').toString('base64');
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Basic ${authorization}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      transaction_details: { order_id: input.orderId, gross_amount: input.grossAmount },
+      item_details: [{ id: input.orderId.slice(0, 50), price: input.grossAmount, quantity: 1, name: 'Order Luminails' }],
+    }),
+    signal: AbortSignal.timeout(12_000),
+  });
+
+  const payload = await response.json().catch(() => null) as { token?: unknown; redirect_url?: unknown; error_messages?: unknown } | null;
+  if (!response.ok) {
+    const providerMessage = Array.isArray(payload?.error_messages) ? payload.error_messages.filter((item): item is string => typeof item === 'string').join(' ') : '';
+    throw new Error(`MIDTRANS_CREATE_FAILED${providerMessage ? `:${providerMessage}` : ''}`);
+  }
+
+  const token = typeof payload?.token === 'string' ? payload.token.trim() : '';
+  const redirectUrl = typeof payload?.redirect_url === 'string' ? payload.redirect_url.trim() : '';
+  if (!token || !redirectUrl) throw new Error('MIDTRANS_RESPONSE_INCOMPLETE');
+  return { token, redirect_url: redirectUrl } satisfies MidtransSnapTransaction;
 }

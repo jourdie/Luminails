@@ -62,6 +62,7 @@ APP_TIMEZONE=Asia/Jakarta
 NEXT_PUBLIC_WHATSAPP_NUMBER=6289501086888
 NEXT_PUBLIC_WHATSAPP_MESSAGE=Halo Luminails, saya mau konsultasi produk dan order.
 MIDTRANS_SERVER_KEY=...
+MIDTRANS_ENVIRONMENT=sandbox
 MIDTRANS_SERVER_KEY=...
 MIDTRANS_SERVER_KEY=...
 WHATSAPP_CLOUD_API_VERSION=v23.0
@@ -84,7 +85,8 @@ Saat diminta, paste nilainya satu per satu. Jangan menaruh nilai secret pada `wr
 
 ## 4. Supabase production
 
-Jalankan migration ke project Supabase production sesuai workflow tim. Setelah itu isi environment variables di Worker.
+Jalankan seluruh migration ke project Supabase production sesuai workflow tim, termasuk
+`20261015131140_midtrans_snap_checkout.sql`. Setelah itu isi environment variables di Worker.
 
 Pada Supabase Authentication → URL Configuration:
 
